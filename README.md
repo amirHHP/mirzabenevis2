@@ -1,4 +1,4 @@
-# Auto Meeting Log for Google Meet
+# MirzaBenevis
 
 A Chrome extension that automatically captures and saves Google Meet captions, making it easy to keep track of meeting conversations.
 
@@ -42,4 +42,8 @@ MIT License - feel free to use this project for your own purposes.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Website
+
+Visit our [website](https://amirhhp.github.io/mirzabenevis2/) to learn more about MirzaBenevis. 
