@@ -48,7 +48,7 @@ This extension is built using:
 
 ## License
 
-MIT License - feel free to use this project for your own purposes.
+Microsoft Reference Source License (MS-RSL)
 
 ## Contributing
 

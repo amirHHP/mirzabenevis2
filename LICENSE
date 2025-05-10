@@ -1,21 +1,57 @@
-MIT License
+**Summary:**
+The MS-RSL is a **proprietary, source-available** license that **only permits read-only “reference use”** of the covered code, primarily for debugging or learning purposes, and **strictly forbids any redistribution or modification**—commercial or non-commercial. It was first applied when Microsoft released the .NET Framework 3.5 libraries’ source under MS-RSL in late 2007 and remains in use for some older Microsoft codebases. ([Wikipedia][1], [Wikipedia][2])
 
-Copyright (c) 2024 Auto Meeting Log
+## 1. Background & Purpose
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Microsoft’s **Shared Source Initiative** (SSI), launched in May 2001, offered five source-available licenses ranging from fully open (Ms-PL, Ms-RL) to highly restrictive. MS-RSL sits at the restrictive end, aimed at allowing developers to **inspect** Microsoft’s implementation while **preserving full control** over its use and distribution. ([Wikipedia][1])
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+## 2. Key Definitions
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE. 
+* **Reference use:** Use “within your company as a reference, in read-only form, for the sole purposes of debugging your products, maintaining your products, or enhancing interoperability” ([Open Source Stack Exchange][3])
+* **“Your company”:** Defined as the company you worked for when you downloaded the software ([Open Source Stack Exchange][3])
+
+## 3. Permissions
+
+* **View source:** You may download and **view** the source code to understand implementation details (e.g., .NET BCL, ASP.NET, Windows Forms) ([Wikipedia][2])
+* **Internal debugging/reference:** Use code solely as an internal reference tool during development and debugging ([Wikipedia][1])
+
+## 4. Prohibitions
+
+* **No distribution:** You may **not redistribute** the code—neither the original form nor any modifications—under any circumstances ([Wikipedia][1])
+* **No modification:** You may **not modify** the code and deploy those changes outside your private copy ([Microsoft Wiki][4])
+* **No derivative works:** Creating derivative works for release or sharing is expressly disallowed ([Wikipedia][1])
+
+## 5. Typical Use Cases
+
+* **Debugging assistance:** Developers debugging their own applications against Microsoft’s implementations
+* **Educational/reference:** Engineers studying Microsoft’s coding patterns or frameworks for interoperability purposes ([Meta Stack Overflow][5])
+
+## 6. Official License Text
+
+> “This license governs use of the accompanying software. If you use the software, you accept this license. If you do not accept the license, do not use the software.” ([referencesource.microsoft.com][6])
+
+## 7. Comparison within SSI
+
+| License    | Redistribution Allowed?        | Modification Allowed? | Copyleft Level       |                  |
+| ---------- | ------------------------------ | --------------------- | -------------------- | ---------------- |
+| **Ms-PL**  | Yes                            | Yes                   | Permissive           |                  |
+| **Ms-RL**  | Yes (with file-level copyleft) | Yes                   | Weak (reciprocal)    |                  |
+| **Ms-RSL** | **No**                         | **No**                | **Most restrictive** | ([Wikipedia][1]) |
+
+## 8. Criticisms & Considerations
+
+* **Not open source:** Fails OSI criteria due to redistribution restrictions ([Wikipedia][1])
+* **Legal risk for reuse:** Viewing code under MS-RSL does **not** grant any patent or redistribution rights—copying patterns too closely could raise IP concerns ([Meta Stack Overflow][5])
+* **License proliferation:** Adds to the complexity of choosing compatible licenses in mixed-license environments ([GÉANT Wiki][7])
+
+---
+
+**Bottom line:** MS-RSL lets you **look** but not “touch” in any public or shared way. It’s suitable when you want to expose your code purely for reference/debugging without permitting any forks, derivatives, or redistribution.
+
+[1]: https://en.wikipedia.org/wiki/Shared_Source_Initiative?utm_source=chatgpt.com "Shared Source Initiative"
+[2]: https://en.wikipedia.org/wiki/.NET_Framework?utm_source=chatgpt.com ".NET Framework"
+[3]: https://opensource.stackexchange.com/questions/7665/what-is-the-meaning-of-the-term-company-in-ms-rsl?utm_source=chatgpt.com "licensing - What is the meaning of the term \"company\" in MS-RSL?"
+[4]: https://microsoft.fandom.com/wiki/Shared_source?utm_source=chatgpt.com "Shared source | Microsoft Wiki | Fandom"
+[5]: https://meta.stackoverflow.com/questions/328240/is-pasting-code-from-the-reference-source-from-microsoft-legal?utm_source=chatgpt.com "Is pasting code from the reference source from Microsoft legal?"
+[6]: https://referencesource.microsoft.com/license.html?utm_source=chatgpt.com "End User License Agreement - Reference Source - Microsoft"
+[7]: https://wiki.geant.org/display/GSD/OSS%2Blicences%2Band%2Blicence%2Bselection?utm_source=chatgpt.com "OSS licences and licence selection - GÉANT federated confluence"
