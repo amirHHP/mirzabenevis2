@@ -86,6 +86,88 @@
             gap: 1rem;
             flex-wrap: wrap;
         }
+
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            width: 2px;
+            background: var(--primary-color);
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            margin-left: -1px;
+        }
+
+        .timeline-item {
+            margin-bottom: 40px;
+            position: relative;
+        }
+
+        .timeline-badge {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            position: absolute;
+            left: 50%;
+            margin-left: -20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 1;
+        }
+
+        .timeline-content {
+            width: calc(50% - 40px);
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .timeline-item:nth-child(odd) .timeline-content {
+            margin-left: auto;
+        }
+
+        .timeline-content h4 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .timeline-content ul {
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+
+        .timeline-content li {
+            margin-bottom: 8px;
+        }
+
+        .timeline-content li:last-child {
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 768px) {
+            .timeline::before {
+                left: 40px;
+            }
+
+            .timeline-badge {
+                left: 40px;
+            }
+
+            .timeline-content {
+                width: calc(100% - 80px);
+                margin-left: 80px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -106,6 +188,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#installation">Installation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#roadmap">Roadmap</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="https://github.com/amirHHP/mirzabenevis2" target="_blank">GitHub</a>
@@ -186,6 +271,62 @@
                                     </ul>
                                 </li>
                             </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap Section -->
+    <section id="roadmap" class="py-5">
+        <div class="container">
+            <h2 class="text-center mb-5">Roadmap</h2>
+            <div class="row justify-content-center">
+                <div class="col-md-10">
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-badge">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h4>Version 1.1.2 - Current</h4>
+                                <ul>
+                                    <li>Added copy to clipboard feature</li>
+                                    <li>Added export to text file functionality</li>
+                                    <li>Improved UI with new logo and design</li>
+                                    <li>Added GitHub Pages website</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-badge">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h4>Version 1.2.0 - Coming Soon</h4>
+                                <ul>
+                                    <li>Add search functionality for meeting logs</li>
+                                    <li>Implement meeting statistics and analytics</li>
+                                    <li>Add support for multiple languages</li>
+                                    <li>Improve performance and reduce memory usage</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-badge">
+                                <i class="fas fa-rocket"></i>
+                            </div>
+                            <div class="timeline-content">
+                                <h4>Version 2.0.0 - Future Plans</h4>
+                                <ul>
+                                    <li>Add support for other video conferencing platforms</li>
+                                    <li>Implement cloud sync for meeting logs</li>
+                                    <li>Add AI-powered meeting summaries</li>
+                                    <li>Create a web dashboard for managing meeting logs</li>
+                                    <li>Add team collaboration features</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -17,7 +17,7 @@ A Chrome extension that automatically captures and saves Google Meet captions, m
 
 1. Download the extension from the Chrome Web Store (coming soon)
 2. Or install manually:
-   - Clone this repository
+   - Clone this repository (Download Zip)
    - Open Chrome and go to `chrome://extensions/`
    - Enable "Developer mode"
    - Click "Load unpacked" and select the extension directory
@@ -25,9 +25,11 @@ A Chrome extension that automatically captures and saves Google Meet captions, m
 ## Usage
 
 1. Join a Google Meet session
-2. The extension will automatically start capturing captions
-3. View your meeting logs by clicking the extension icon
-4. Use the copy and export features to save your meeting logs
+2. Go to setting and turn caption on 
+3. Select languages that talk in meet 
+4. The extension will automatically start capturing captions
+5. View your meeting logs by clicking the extension icon
+6. Use the copy and export features to save your meeting logs
 
 ## Development
 
@@ -35,6 +37,14 @@ This extension is built using:
 - Vanilla JavaScript
 - Chrome Extension Manifest V3
 - Modern CSS
+
+## Roadmaps
+- Rename meets name
+- Delete meets log
+- Search in meets
+- Summerize with AI
+- Sync with cloud (drive, dropbox,...)
+
 
 ## License
 
