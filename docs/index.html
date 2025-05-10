@@ -44,6 +44,7 @@
             width: 64px;
             height: 64px;
             margin-right: 1rem;
+            object-fit: contain;
         }
 
         .navbar {
@@ -63,11 +64,27 @@
             border-radius: 25px;
             font-weight: bold;
             transition: transform 0.3s ease;
+            margin: 0 10px;
         }
 
         .cta-button:hover {
             transform: scale(1.05);
             background-color: #2980b9;
+        }
+
+        .download-button {
+            background-color: #2ecc71;
+        }
+
+        .download-button:hover {
+            background-color: #27ae60;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
         }
     </style>
 </head>
@@ -76,7 +93,7 @@
     <nav class="navbar navbar-expand-lg navbar-light fixed-top">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="#">
-                <img src="../images/logo.svg" alt="MirzaBenevis Logo" class="logo">
+                <img src="../images/new logo.jpeg" alt="MirzaBenevis Logo" class="logo">
                 MirzaBenevis
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -103,7 +120,12 @@
         <div class="container text-center">
             <h1 class="display-4 mb-4">MirzaBenevis</h1>
             <p class="lead mb-5">Automatically capture and save your Google Meet conversations with style</p>
-            <a href="#installation" class="btn btn-light cta-button">Get Started</a>
+            <div class="button-group">
+                <a href="#installation" class="btn btn-light cta-button">Get Started</a>
+                <a href="https://github.com/amirHHP/mirzabenevis2/archive/refs/heads/main.zip" class="btn btn-light cta-button download-button">
+                    <i class="fas fa-download"></i> Download ZIP
+                </a>
+            </div>
         </div>
     </section>
 
@@ -156,10 +178,11 @@
                                 <li class="list-group-item">Download from Chrome Web Store (coming soon)</li>
                                 <li class="list-group-item">Or install manually:
                                     <ul>
-                                        <li>Clone the repository</li>
+                                        <li>Download the ZIP file using the button above</li>
+                                        <li>Extract the ZIP file</li>
                                         <li>Open Chrome and go to chrome://extensions/</li>
                                         <li>Enable "Developer mode"</li>
-                                        <li>Click "Load unpacked" and select the extension directory</li>
+                                        <li>Click "Load unpacked" and select the extracted folder</li>
                                     </ul>
                                 </li>
                             </ol>
