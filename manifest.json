@@ -1,0 +1,37 @@
+{
+"update_url": "https://clients2.google.com/service/update2/crx",
+
+  "manifest_version": 3,
+  "name": "Auto Meeting Log for Google Meet",
+  "version": "1.1.2",
+  "description": "Automatically turns on Google Meet captions and saves them.",
+  "permissions": [],
+  "action": {
+    "default_popup": "options.html",
+    "default_icon": {
+      "128": "images/128-AutoMeetingLog.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://meet.google.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["meetings.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "128": "images/128-AutoMeetingLog.png"
+  },
+  "host_permissions": [
+    "https://meet.google.com/*"
+  ]
+}

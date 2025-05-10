@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Logs</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="meetings.css">
+</head>
+
+<body>
+    <div class="navbar">
+        <div class="navbar-left">
+            <div class="navbar-logo">
+                <img src="images/128-AutoMeetingLog.png" alt="Logo" height="40">
+            </div>
+            <div id="context-info">
+                <span class="badge context-label">Meeting Logs</span>
+            </div>
+        </div>
+        <div class="navbar-right">
+            <button id="copyToClipboard" class="btn btn-outline-primary" disabled>
+                <i class="fas fa-copy"></i> Copy to Clipboard
+            </button>
+            <button id="exportToTxt" class="btn btn-outline-success" disabled>
+                <i class="fas fa-file-export"></i> Export to TXT
+            </button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="container">
+            <div class="meeting-list">
+                <ul class="list-group" id="meeting-list"></ul>
+            </div>
+            <div id="captions" hidden></div>
+        </div>
+    </div>
+    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+    <script src="meetings.js" type="module"></script>
+</body>
+
+</html>
