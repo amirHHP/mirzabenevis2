@@ -50,6 +50,7 @@
 
 body {
     background-color: #f9f9f9;
+    font-family: 'Vazirmatn', sans-serif;
 }
 
 .container {
@@ -126,12 +127,14 @@ body {
     font-weight: 600;
     font-size: .9rem;
     color: #2c2d30;
+    font-family: 'Vazirmatn', sans-serif;
 }
 
 .time-text {
     margin-left: 8px;
     font-size: .75rem;
     color: #8a889d;
+    font-family: 'Vazirmatn', sans-serif;
 }
 
 .content-p {
@@ -139,6 +142,7 @@ body {
     font-size: .85rem;
     line-height: 1.4;
     color: #2c2d30;
+    font-family: 'Vazirmatn', sans-serif;
 }
 
 .date-divider {
