@@ -9,9 +9,40 @@ export class MeetingUI {
     initializeButtons() {
         const copyButton = document.getElementById('copyToClipboard');
         const exportButton = document.getElementById('exportToTxt');
+        const renameButton = document.getElementById('renameMeeting');
+        const removeButton = document.getElementById('removeMeeting');
 
         copyButton.addEventListener('click', () => this.copyToClipboard());
         exportButton.addEventListener('click', () => this.exportToTxt());
+
+        // Remove button logic
+        removeButton.addEventListener('click', async () => {
+            if (!this.currentMeeting) return;
+            if (confirm('Are you sure you want to remove this meeting log?')) {
+                await this.deleteMeeting(this.currentMeeting.meetingStartTime);
+                this.currentMeeting = null;
+                this.setActionButtonsEnabled(false);
+                document.getElementById('captions').hidden = true;
+            }
+        });
+
+        // Rename button logic
+        renameButton.addEventListener('click', async () => {
+            if (!this.currentMeeting) return;
+            const newTitle = prompt('Enter new meeting name:', this.currentMeeting.meetingTitle);
+            if (newTitle && newTitle.trim() && newTitle !== this.currentMeeting.meetingTitle) {
+                await this.renameMeeting(this.currentMeeting.meetingStartTime, newTitle.trim());
+            }
+        });
+
+        this.setActionButtonsEnabled(false);
+    }
+
+    setActionButtonsEnabled(enabled) {
+        document.getElementById('renameMeeting').disabled = !enabled;
+        document.getElementById('removeMeeting').disabled = !enabled;
+        document.getElementById('copyToClipboard').disabled = !enabled;
+        document.getElementById('exportToTxt').disabled = !enabled;
     }
 
     formatMessageForExport(message, participants) {
@@ -140,20 +171,156 @@ export class MeetingUI {
 
             meetings.forEach((meeting) => {
                 const li = document.createElement("li");
-                li.className = "list-group-item";
-                li.innerHTML = `<strong>${meeting.meetingTitle}</strong><br><small>${this.convertToKST(
-                    meeting.meetingStartTime,
-                )}</small>`;
+                li.className = "list-group-item d-flex align-items-center justify-content-between";
                 li.setAttribute("data-starttime", meeting.meetingStartTime);
-                li.addEventListener("click", () => {
+
+                // Meeting title (with inline edit support)
+                const titleContainer = document.createElement("span");
+                titleContainer.className = "meeting-title-container flex-grow-1";
+                const title = document.createElement("strong");
+                title.textContent = meeting.meetingTitle;
+                title.className = "meeting-title-text";
+                titleContainer.appendChild(title);
+
+                // Inline edit input (hidden by default)
+                const editInput = document.createElement("input");
+                editInput.type = "text";
+                editInput.value = meeting.meetingTitle;
+                editInput.className = "form-control meeting-title-edit-input";
+                editInput.style.display = "none";
+                titleContainer.appendChild(editInput);
+
+                // Date
+                const date = document.createElement("small");
+                date.textContent = this.convertToKST(meeting.meetingStartTime);
+                date.className = "ml-2 text-muted";
+                titleContainer.appendChild(document.createElement("br"));
+                titleContainer.appendChild(date);
+
+                // Icon container
+                const iconContainer = document.createElement("span");
+                iconContainer.className = "meeting-icon-container ml-2";
+
+                // Pen (edit) icon
+                const penIcon = document.createElement("i");
+                penIcon.className = "fas fa-pen text-primary meeting-pen-icon";
+                penIcon.title = "Rename";
+                penIcon.style.cursor = "pointer";
+                penIcon.style.marginRight = "10px";
+                iconContainer.appendChild(penIcon);
+
+                // Trash icon
+                const trashIcon = document.createElement("i");
+                trashIcon.className = "fas fa-trash text-danger meeting-trash-icon";
+                trashIcon.title = "Delete";
+                trashIcon.style.cursor = "pointer";
+                iconContainer.appendChild(trashIcon);
+
+                // Add to li
+                li.appendChild(titleContainer);
+                li.appendChild(iconContainer);
+
+                // Click to select meeting (ignore if editing)
+                li.addEventListener("click", (e) => {
+                    if (e.target === penIcon || e.target === trashIcon || editInput.style.display === "block") return;
                     this.showMessages(meeting);
                     this.setActiveMeeting(li);
                 });
+
+                // Pen icon click: show inline edit
+                penIcon.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    title.style.display = "none";
+                    editInput.style.display = "block";
+                    editInput.focus();
+                    editInput.select();
+                });
+
+                // Edit input: save on blur or Enter
+                editInput.addEventListener("keydown", (e) => {
+                    if (e.key === "Enter") {
+                        editInput.blur();
+                    }
+                });
+                editInput.addEventListener("blur", async () => {
+                    const newTitle = editInput.value.trim();
+                    if (newTitle && newTitle !== meeting.meetingTitle) {
+                        await this.renameMeeting(meeting.meetingStartTime, newTitle, title, editInput);
+                    } else {
+                        editInput.style.display = "none";
+                        title.style.display = "inline";
+                    }
+                });
+
+                // Trash icon click: delete with undo
+                trashIcon.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    const removedLi = li;
+                    const removedMeeting = meeting;
+                    removedLi.style.display = "none";
+                    this.showToast('Meeting deleted. <a href="#" class="undo-link">Undo</a>', 'error');
+                    let undo = false;
+                    const undoHandler = (event) => {
+                        if (event.target.classList.contains('undo-link')) {
+                            event.preventDefault();
+                            undo = true;
+                            removedLi.style.display = "";
+                            this.showToast('Delete undone.', 'success');
+                            document.removeEventListener('click', undoHandler);
+                        }
+                    };
+                    document.addEventListener('click', undoHandler);
+                    setTimeout(async () => {
+                        document.removeEventListener('click', undoHandler);
+                        if (!undo) {
+                            await this.deleteMeeting(removedMeeting.meetingStartTime);
+                        }
+                    }, 4000);
+                });
+
                 meetingListElement.appendChild(li);
             });
 
             this.reloadSelectedMeeting(meetings);
         }
+    }
+
+    async deleteMeeting(meetingStartTime) {
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({
+                type: "background.deleteMeeting",
+                meetingStartTime
+            }, (response) => {
+                if (response && response.success) {
+                    this.showToast('Meeting deleted.', 'success');
+                    this.loadMeetingList();
+                } else {
+                    this.showToast('Failed to delete meeting', 'error');
+                }
+                resolve();
+            });
+        });
+    }
+
+    async renameMeeting(meetingStartTime, newTitle, titleElem, inputElem) {
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({
+                type: "background.renameMeeting",
+                meetingStartTime,
+                newTitle
+            }, (response) => {
+                if (response && response.success) {
+                    titleElem.textContent = newTitle;
+                    inputElem.style.display = "none";
+                    titleElem.style.display = "inline";
+                    this.showToast('Meeting renamed.', 'success');
+                    this.loadMeetingList();
+                } else {
+                    this.showToast('Failed to rename meeting', 'error');
+                }
+                resolve();
+            });
+        });
     }
 
     reloadSelectedMeeting(meetings) {
@@ -253,6 +420,7 @@ export class MeetingUI {
 
     showMessages(meeting) {
         this.currentMeeting = meeting;
+        this.setActionButtonsEnabled(true);
         const copyButton = document.getElementById('copyToClipboard');
         const exportButton = document.getElementById('exportToTxt');
         

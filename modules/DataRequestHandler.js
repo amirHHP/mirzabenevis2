@@ -34,15 +34,41 @@ export class DataRequestHandler {
         }
     }
 
+    async handleDeleteMeeting(request, sendResponse) {
+        try {
+            await this.autoMeetingLogDB.deleteMeeting(request.meetingStartTime);
+            chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
+            sendResponse({ success: true });
+        } catch (error) {
+            sendResponse({ success: false, message: error.message });
+        }
+    }
+
+    async handleRenameMeeting(request, sendResponse) {
+        try {
+            await this.autoMeetingLogDB.updateMeetingTitle(request.meetingStartTime, request.newTitle);
+            chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
+            sendResponse({ success: true });
+        } catch (error) {
+            sendResponse({ success: false, message: error.message });
+        }
+    }
+
     handleMessage(request, sender, sendResponse) {
         console.log("Received message:", request.type);
         
         if (request.type === "background.getMeetings") {
             this.handleGetMeetings(sendResponse);
-            return true; // 비동기 응답을 위해 true 반환
+            return true;
         } else if (request.type === "background.saveMeeting") {
             this.handleSaveMeeting(request, sendResponse);
-            return true; // 비동기 응답을 위해 true 반환
+            return true;
+        } else if (request.type === "background.deleteMeeting") {
+            this.handleDeleteMeeting(request, sendResponse);
+            return true;
+        } else if (request.type === "background.renameMeeting") {
+            this.handleRenameMeeting(request, sendResponse);
+            return true;
         }
         return false;
     }

@@ -99,4 +99,36 @@ export class AutoMeetingLogData {
             };
         });
     }
+
+    async deleteMeeting(meetingStartTime) {
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['meetings'], 'readwrite');
+            const objectStore = transaction.objectStore('meetings');
+            const deleteRequest = objectStore.delete(meetingStartTime);
+            deleteRequest.onsuccess = () => resolve();
+            deleteRequest.onerror = (event) => reject(event.target.error);
+        });
+    }
+
+    async updateMeetingTitle(meetingStartTime, newTitle) {
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['meetings'], 'readwrite');
+            const objectStore = transaction.objectStore('meetings');
+            const getRequest = objectStore.get(meetingStartTime);
+            getRequest.onsuccess = (event) => {
+                const meeting = event.target.result;
+                if (meeting) {
+                    meeting.meetingTitle = newTitle;
+                    const putRequest = objectStore.put(meeting);
+                    putRequest.onsuccess = () => resolve();
+                    putRequest.onerror = (event) => reject(event.target.error);
+                } else {
+                    reject(new Error('Meeting not found'));
+                }
+            };
+            getRequest.onerror = (event) => reject(event.target.error);
+        });
+    }
 }

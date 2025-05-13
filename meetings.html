@@ -17,7 +17,7 @@
                 <img src="images/128-AutoMeetingLog.png" alt="Logo" height="40">
             </div>
             <div id="context-info">
-                <span class="badge context-label">Meeting Logs</span>
+                <span class="badge context-label">MirzaBenevis</span>
             </div>
         </div>
         <div class="navbar-right">
@@ -27,13 +27,21 @@
             <button id="exportToTxt" class="btn btn-outline-success" disabled>
                 <i class="fas fa-file-export"></i> Export to TXT
             </button>
+            <button id="renameMeeting" class="btn btn-outline-warning" disabled>
+                <i class="fas fa-pen"></i> Rename
+            </button>
+            <button id="removeMeeting" class="btn btn-outline-danger" disabled>
+                <i class="fas fa-trash"></i> Remove
+            </button>
         </div>
     </div>
 
     <div class="main-container">
         <div class="container">
             <div class="meeting-list">
-                <ul class="list-group" id="meeting-list"></ul>
+                <ul class="list-group" id="meeting-list">
+                    <!-- Meeting rows and icons are rendered dynamically by JS -->
+                </ul>
             </div>
             <div id="captions" hidden></div>
         </div>

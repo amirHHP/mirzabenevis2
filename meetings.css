@@ -29,7 +29,7 @@
 .badge.context-label {
     background-color: rgba(255, 255, 255, 0.5);
     ;
-    color: white;
+    color: rgb(0, 0, 0);
     font-weight: bold;
     align-items: center;
 }
@@ -244,4 +244,46 @@ body {
 
 .toast-info {
     background-color: #17a2b8;
+}
+
+.meeting-icon-container {
+    display: flex;
+    align-items: center;
+    margin-left: 8px;
+}
+
+.meeting-trash-icon, .meeting-pen-icon {
+    font-size: 1.1em;
+    margin-left: 4px;
+    margin-right: 4px;
+    opacity: 0.7;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+.meeting-trash-icon:hover, .meeting-pen-icon:hover {
+    opacity: 1;
+    color: #3f0e40;
+}
+
+.meeting-title-edit-input {
+    width: 80%;
+    display: inline-block;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    font-size: 1em;
+    padding: 2px 6px;
+}
+
+.meeting-title-container {
+    flex-grow: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.undo-link {
+    color: #fff;
+    text-decoration: underline;
+    cursor: pointer;
+    font-weight: bold;
 }
