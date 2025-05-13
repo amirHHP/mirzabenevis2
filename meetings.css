@@ -206,17 +206,30 @@ body {
     gap: 10px;
 }
 
-.navbar-right button {
+.navbar-right button, .navbar-right a {
     display: flex;
     align-items: center;
     gap: 5px;
     padding: 6px 12px;
     font-size: 14px;
+    margin-left: 8px;
 }
 
 .navbar-right button:disabled {
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+.navbar-right .btn-success {
+    background-color: #2ecc71;
+    border-color: #2ecc71;
+    transition: all 0.3s ease;
+}
+
+.navbar-right .btn-success:hover {
+    background-color: #27ae60;
+    border-color: #27ae60;
+    transform: translateY(-1px);
 }
 
 .toast {
