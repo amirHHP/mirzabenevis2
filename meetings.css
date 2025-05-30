@@ -304,3 +304,34 @@ body {
     cursor: pointer;
     font-weight: bold;
 }
+
+/* Summary Modal Styles */
+.summary-content {
+    padding: 20px;
+    line-height: 1.6;
+}
+
+.summary-content .spinner-border {
+    display: block;
+    margin: 20px auto;
+}
+
+.modal-lg {
+    max-width: 800px;
+}
+
+.modal-body {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+#summaryContent {
+    white-space: pre-wrap;
+    font-size: 16px;
+}
+
+#summaryContent.error {
+    color: #dc3545;
+    text-align: center;
+    padding: 20px;
+}

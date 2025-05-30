@@ -1,8 +1,11 @@
+import { GeminiService } from './GeminiService.js';
+
 export class MeetingUI {
     constructor(autoMeetingLogDB) {
         this.autoMeetingLogDB = autoMeetingLogDB;
         this.selectedMeetingStartTime = null;
         this.currentMeeting = null;
+        this.geminiService = new GeminiService();
         this.initializeButtons();
     }
 
@@ -11,9 +14,11 @@ export class MeetingUI {
         const exportButton = document.getElementById('exportToTxt');
         const renameButton = document.getElementById('renameMeeting');
         const removeButton = document.getElementById('removeMeeting');
+        const summarizeButton = document.getElementById('summarizeMeeting');
 
         copyButton.addEventListener('click', () => this.copyToClipboard());
         exportButton.addEventListener('click', () => this.exportToTxt());
+        summarizeButton.addEventListener('click', () => this.summarizeMeeting());
 
         // Remove button logic
         removeButton.addEventListener('click', async () => {
@@ -43,6 +48,7 @@ export class MeetingUI {
         document.getElementById('removeMeeting').disabled = !enabled;
         document.getElementById('copyToClipboard').disabled = !enabled;
         document.getElementById('exportToTxt').disabled = !enabled;
+        document.getElementById('summarizeMeeting').disabled = !enabled;
     }
 
     formatMessageForExport(message, participants) {
@@ -509,5 +515,107 @@ export class MeetingUI {
         });
         selectedItem.classList.add("active");
         this.selectedMeetingStartTime = selectedItem.getAttribute("data-starttime");
+    }
+
+    getSelectedMeeting() {
+        return this.currentMeeting;
+    }
+
+    convertMeetingToText(meeting) {
+        const convertedMeeting = this.convert(meeting);
+        const messages = convertedMeeting.messages
+            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+            .map(message => this.formatMessageForExport(message, convertedMeeting.participants))
+            .join('\n');
+
+        return {
+            meetingId: meeting.meetingId,
+            text: messages
+        };
+    }
+
+    async summarizeMeeting() {
+        try {
+            console.log('Summarize button clicked');
+            const selectedMeeting = this.getSelectedMeeting();
+            if (!selectedMeeting) {
+                throw new Error('No meeting selected');
+            }
+
+            // Get language from storage
+            const language = await new Promise(resolve => {
+                chrome.storage.sync.get(['summaryLanguage'], result => {
+                    resolve(result.summaryLanguage || 'en');
+                });
+            });
+
+            console.log('Showing modal');
+            const modal = document.getElementById('summaryModal');
+            const summaryContent = document.getElementById('summaryContent');
+            modal.style.display = 'block';
+            modal.classList.add('show');
+
+            // Set direction and font for modal and content
+            if (language === 'fa') {
+                modal.setAttribute('dir', 'rtl');
+                summaryContent.style.fontFamily = 'Vazirmatn, Tahoma, Arial, sans-serif';
+            } else {
+                modal.setAttribute('dir', 'ltr');
+                summaryContent.style.fontFamily = '';
+            }
+
+            // Show loading spinner/message
+            summaryContent.innerHTML = `
+                <div class="spinner-border text-primary" role="status" style="display:inline-block;width:2rem;height:2rem;vertical-align:middle;"></div>
+                <span style="margin-left:1rem;vertical-align:middle;">Generating summary...</span>
+            `;
+
+            // Add event listeners for closing the modal
+            const closeButtons = modal.querySelectorAll('[data-dismiss="modal"]');
+            closeButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                });
+            });
+
+            // Close modal when clicking outside
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                    modal.classList.remove('show');
+                }
+            });
+
+            console.log('Converting meeting');
+            const meeting = this.convertMeetingToText(selectedMeeting);
+            console.log('Meeting converted:', meeting);
+
+            console.log('Sending request to Gemini API');
+            const summary = await this.geminiService.summarizeMeeting(meeting.text, meeting.meetingId);
+            console.log('Summary received:', summary);
+
+            // Simple markdown to HTML converter
+            function simpleMarkdown(md) {
+                return md
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // bold
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>') // italic
+                    .replace(/^\s*\* (.*)$/gm, '<li>$1</li>') // unordered list
+                    .replace(/\n{2,}/g, '</p><p>') // paragraphs
+                    .replace(/\n/g, '<br>') // line breaks
+                    .replace(/^<p>/, '')
+                    .replace(/<\/p>$/, '');
+            }
+
+            summaryContent.innerHTML = `<div class="summary-text"><p>${simpleMarkdown(summary)}</p></div>`;
+        } catch (error) {
+            console.error('Error in summarizeMeeting:', error);
+            const summaryContent = document.getElementById('summaryContent');
+            summaryContent.innerHTML = `
+                <div class="error-message">
+                    Error: ${error.message}
+                </div>
+            `;
+        }
     }
 }
