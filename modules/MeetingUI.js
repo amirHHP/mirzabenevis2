@@ -49,6 +49,11 @@ export class MeetingUI {
         document.getElementById('copyToClipboard').disabled = !enabled;
         document.getElementById('exportToTxt').disabled = !enabled;
         document.getElementById('summarizeMeeting').disabled = !enabled;
+        // Hide notes panel if disabling
+        const notesPanel = document.getElementById('notes-panel');
+        if (!enabled && notesPanel) {
+            notesPanel.style.display = 'none';
+        }
     }
 
     formatMessageForExport(message, participants) {
@@ -201,6 +206,20 @@ export class MeetingUI {
                 date.textContent = this.convertToKST(meeting.meetingStartTime);
                 date.className = "ml-2 text-muted";
                 titleContainer.appendChild(date);
+
+                // Notes input
+                const notesInput = document.createElement("input");
+                notesInput.type = "text";
+                notesInput.value = meeting.notes || "";
+                notesInput.placeholder = "Add notes...";
+                notesInput.className = "form-control meeting-notes-input";
+                notesInput.style.width = "150px";
+                notesInput.style.marginRight = "10px";
+                notesInput.addEventListener("change", async (e) => {
+                    const notes = e.target.value;
+                    await this.updateMeetingNotes(meeting.meetingStartTime, notes);
+                });
+                titleContainer.appendChild(notesInput);
 
                 // Icon container
                 const iconContainer = document.createElement("span");
@@ -480,6 +499,22 @@ export class MeetingUI {
         });
 
         captionsElement.hidden = false;
+
+        // Show and populate notes panel
+        const notesPanel = document.getElementById('notes-panel');
+        const notesInput = document.getElementById('meeting-notes-input');
+        const saveNotesBtn = document.getElementById('save-notes-btn');
+        const notesSavedMsg = document.getElementById('notes-saved-message');
+        if (notesPanel && notesInput && saveNotesBtn && notesSavedMsg) {
+            notesPanel.style.display = 'block';
+            notesInput.value = meeting.notes || '';
+            notesSavedMsg.style.display = 'none';
+            saveNotesBtn.onclick = async () => {
+                await this.updateMeetingNotes(meeting.meetingStartTime, notesInput.value);
+                notesSavedMsg.style.display = 'block';
+                setTimeout(() => { notesSavedMsg.style.display = 'none'; }, 1500);
+            };
+        }
     }
 
     highlightMessagesBySpeaker(speakerName) {
@@ -616,5 +651,22 @@ export class MeetingUI {
                 </div>
             `;
         }
+    }
+
+    async updateMeetingNotes(meetingStartTime, notes) {
+        return new Promise((resolve) => {
+            chrome.runtime.sendMessage({
+                type: "background.updateNotes",
+                meetingStartTime,
+                notes
+            }, (response) => {
+                if (response && response.success) {
+                    this.showToast('Notes saved.', 'success');
+                } else {
+                    this.showToast('Failed to save notes', 'error');
+                }
+                resolve();
+            });
+        });
     }
 }
