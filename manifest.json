@@ -11,7 +11,11 @@
   "action": {
     "default_popup": "options.html",
     "default_icon": {
-      "128": "images/logo.svg"
+      "16": "images/logo-16.png",
+      "32": "images/logo-32.png",
+      "48": "images/logo-48.png",
+      "128": "images/logo-128.png",
+      "512": "images/logo-512.png"
     }
   },
   "background": {
@@ -31,7 +35,11 @@
     }
   ],
   "icons": {
-    "128": "images/logo.svg"
+    "16": "images/logo-16.png",
+    "32": "images/logo-32.png",
+    "48": "images/logo-48.png",
+    "128": "images/logo-128.png",
+    "512": "images/logo-512.png"
   },
   "host_permissions": [
     "https://meet.google.com/*"

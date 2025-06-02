@@ -5,7 +5,65 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Options</title>
+    <link rel="stylesheet" href="meetings.css">
     <style>
+        .settings-container {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            padding: 32px 24px 24px 24px;
+            max-width: 480px;
+            margin: 40px auto;
+        }
+        .settings-title {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: #3f0e40;
+            margin-bottom: 24px;
+            font-family: 'Vazirmatn', sans-serif;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        label {
+            font-weight: 600;
+            color: #3f0e40;
+            margin-bottom: 6px;
+        }
+        input[type="password"], select {
+            font-size: 1rem;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            padding: 8px 10px;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        .button-group {
+            display: flex;
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .button-group button {
+            font-size: 1.1rem;
+            border-radius: 8px;
+            padding: 14px 0;
+            min-width: 120px;
+            font-family: 'Vazirmatn', sans-serif;
+            border: none;
+            background: #3a8dca;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .button-group button:hover {
+            background: #2c6ea6;
+        }
+        .form-text {
+            color: #888;
+            font-size: 0.95rem;
+        }
         body {
             font-family: 'Arial', sans-serif;
             padding: 20px;
@@ -18,42 +76,6 @@
             color: #333;
             border-bottom: 1px solid #e0e0e0;
             padding-bottom: 10px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            color: #333;
-        }
-
-        input[type="text"] {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        button {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            background-color: #3a8dca;
-            color: white;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            border-radius: 3px;
-            margin-top: 20px;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #2c6ea6;
         }
 
         .status-message {
@@ -79,25 +101,27 @@
 </head>
 
 <body>
-    <h3>Auto Meeting Log</h3>
-    
-    <div class="form-group">
-        <label for="geminiApiKey">Gemini API Key:</label>
-        <input type="password" id="geminiApiKey" class="form-control">
-        <small class="form-text text-muted">Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
+    <div class="settings-container">
+        <div class="settings-title">MirzaBenevis</div>
+        <div class="form-group">
+            <label for="geminiApiKey">Gemini API Key:</label>
+            <input type="password" id="geminiApiKey" class="form-control">
+            <small class="form-text text-muted">Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
+        </div>
+        <div class="form-group">
+            <label for="summaryLanguage">Summary Language:</label>
+            <select id="summaryLanguage" class="form-control">
+                <option value="en">English</option>
+                <option value="fa">Persian (فارسی)</option>
+            </select>
+            <small class="form-text text-muted">Select the language for meeting summaries</small>
+        </div>
+        <div class="button-group">
+            <button id="save">Save</button>
+            <button id="show-meetings-btn">Meeting Logs</button>
+        </div>
+        <div id="status-message" class="status-message"></div>
     </div>
-    <div class="form-group">
-        <label for="summaryLanguage">Summary Language:</label>
-        <select id="summaryLanguage" class="form-control">
-            <option value="en">English</option>
-            <option value="fa">Persian (فارسی)</option>
-        </select>
-        <small class="form-text text-muted">Select the language for meeting summaries</small>
-    </div>
-    <button id="save" class="btn btn-primary">Save</button>
-    <div id="status-message" class="status-message"></div>
-    
-    <button id="show-meetings-btn">Meeting Logs</button>
     <script src="options.js"></script>
 </body>
 

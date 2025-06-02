@@ -68,12 +68,26 @@ body {
     border-right: 1px solid #ccc;
 }
 
+.list-group {
+    list-style: none;
+    padding-left: 0;
+    margin-bottom: 0;
+}
+
+.meeting-title-text {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #2c2d30;
+    margin-bottom: 2px;
+    transition: color 0.2s;
+}
+
 .list-group-item {
-    cursor: pointer;
-    border: none;
-    border-bottom: 1px solid #ccc;
-    background-color: transparent;
-    color: #4a4a4a;
+    padding: 10px 10px;
+    font-size: 1rem;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    transition: background 0.2s;
 }
 
 .list-group-item:hover {
@@ -84,6 +98,10 @@ body {
     background-color: #3f0e40;
     color: #fff;
     width: auto;
+}
+
+.list-group-item.active .meeting-title-text {
+    color: #fff;
 }
 
 #captions {
@@ -204,6 +222,8 @@ body {
 .navbar-right {
     display: flex;
     gap: 10px;
+    flex-wrap: nowrap;
+    align-items: center;
 }
 
 .navbar-right button, .navbar-right a {
@@ -334,4 +354,35 @@ body {
     color: #dc3545;
     text-align: center;
     padding: 20px;
+}
+
+@media (max-width: 900px) {
+    .navbar-right {
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: flex-end;
+    }
+    .navbar-right button, .navbar-right a {
+        min-width: 120px;
+        font-size: 13px;
+        padding: 6px 4px;
+        margin-left: 0;
+        margin-bottom: 4px;
+    }
+}
+
+@media (max-width: 600px) {
+    .navbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .navbar-right {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: wrap;
+    }
+    .navbar-right button, .navbar-right a {
+        width: 100%;
+        margin: 2px 0;
+    }
 }

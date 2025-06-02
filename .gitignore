@@ -18,4 +18,11 @@ node_modules/
 
 # Build files
 dist/
-build/ 
+build/
+
+# Images
+!images/logo-16.png
+!images/logo-32.png
+!images/logo-48.png
+!images/logo-128.png
+!images/logo-512.png 

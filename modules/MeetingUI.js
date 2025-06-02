@@ -200,7 +200,6 @@ export class MeetingUI {
                 const date = document.createElement("small");
                 date.textContent = this.convertToKST(meeting.meetingStartTime);
                 date.className = "ml-2 text-muted";
-                titleContainer.appendChild(document.createElement("br"));
                 titleContainer.appendChild(date);
 
                 // Icon container
