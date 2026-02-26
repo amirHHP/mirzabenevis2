@@ -163,6 +163,24 @@ export class AutoMeetingLogData {
         });
     }
 
+    async getMeeting(meetingStartTime) {
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['meetings'], 'readonly');
+            const objectStore = transaction.objectStore('meetings');
+            const request = objectStore.get(meetingStartTime);
+
+            request.onsuccess = (event) => {
+                resolve(event.target.result || null);
+            };
+
+            request.onerror = (event) => {
+                console.error('Error getting meeting:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
+
     async deleteMeeting(meetingStartTime) {
         const db = await this.open();
         return new Promise((resolve, reject) => {
@@ -187,6 +205,85 @@ export class AutoMeetingLogData {
 
             request.onerror = (event) => {
                 console.error('Delete request error:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
+
+    async updateMeetingTitle(meetingStartTime, newTitle) {
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['meetings'], 'readwrite');
+            const objectStore = transaction.objectStore('meetings');
+            const request = objectStore.get(meetingStartTime);
+
+            request.onsuccess = (event) => {
+                const meeting = event.target.result;
+                if (!meeting) {
+                    resolve(false);
+                    return;
+                }
+
+                const updatedMeeting = {
+                    ...meeting,
+                    meetingTitle: newTitle,
+                    lastUpdated: new Date().toISOString()
+                };
+
+                const updateRequest = objectStore.put(updatedMeeting);
+
+                updateRequest.onsuccess = () => {
+                    resolve(true);
+                };
+
+                updateRequest.onerror = (updateEvent) => {
+                    console.error('Error updating meeting title:', updateEvent.target.error);
+                    reject(updateEvent.target.error);
+                };
+            };
+
+            request.onerror = (event) => {
+                console.error('Error loading meeting for title update:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
+
+    async updateMeetingSummary(meetingStartTime, summaryText, language) {
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['meetings'], 'readwrite');
+            const objectStore = transaction.objectStore('meetings');
+            const request = objectStore.get(meetingStartTime);
+
+            request.onsuccess = (event) => {
+                const meeting = event.target.result;
+                if (!meeting) {
+                    resolve(false);
+                    return;
+                }
+
+                const updatedMeeting = {
+                    ...meeting,
+                    summaryText,
+                    summaryLanguage: language || 'en',
+                    summaryUpdatedAt: new Date().toISOString()
+                };
+
+                const updateRequest = objectStore.put(updatedMeeting);
+
+                updateRequest.onsuccess = () => {
+                    resolve(true);
+                };
+
+                updateRequest.onerror = (updateEvent) => {
+                    console.error('Error updating meeting summary:', updateEvent.target.error);
+                    reject(updateEvent.target.error);
+                };
+            };
+
+            request.onerror = (event) => {
+                console.error('Error loading meeting for summary update:', event.target.error);
                 reject(event.target.error);
             };
         });

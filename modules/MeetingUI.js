@@ -4,6 +4,7 @@ export class MeetingUI {
         this.selectedMeetingStartTime = null;
         this.deleteModal = null;
         this.initializeDeleteModal();
+        this.initializeToolbarButtons();
     }
 
     initializeDeleteModal() {
@@ -172,6 +173,34 @@ export class MeetingUI {
         return output;
     }
 
+    generateMeetingPlainText(meeting) {
+        const convertedMeeting = this.convert(meeting);
+        const { meetingTitle, meetingId, meetingStartTime, participants, messages } = convertedMeeting;
+
+        const headerLines = [];
+        headerLines.push(`Title: ${meetingTitle || meetingId || 'Untitled meeting'}`);
+        headerLines.push(`Start time: ${new Date(meetingStartTime).toLocaleString()}`);
+        headerLines.push('');
+
+        const sortedMessages = [...messages].sort(
+            (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+        );
+
+        const lines = sortedMessages.map((msg) => {
+            const speaker = participants[msg.actorIndex];
+            const speakerName = speaker?.name || 'Unknown';
+            const time = new Date(msg.timestamp).toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            return `[${time}] ${speakerName}: ${msg.text}`;
+        });
+
+        return [...headerLines, ...lines].join('\n');
+    }
+
     // 미팅 목록을 로드하고 표시
     async loadMeetingList() {
         try {
@@ -179,6 +208,255 @@ export class MeetingUI {
             this.updateMeetingList(meetings);
         } catch (error) {
             console.error('Error loading meeting list:', error);
+        }
+    }
+
+    async getSelectedMeeting() {
+        if (!this.selectedMeetingStartTime) {
+            alert('Please select a meeting first.');
+            return null;
+        }
+        try {
+            const meeting = await this.autoMeetingLogDB.getMeeting(this.selectedMeetingStartTime);
+            if (!meeting) {
+                alert('Could not load the selected meeting.');
+            }
+            return meeting;
+        } catch (error) {
+            console.error('Error loading selected meeting:', error);
+            alert('Failed to load the selected meeting.');
+            return null;
+        }
+    }
+
+    initializeToolbarButtons() {
+        const exportBtn = document.getElementById('exportTxtBtn');
+        const copyBtn = document.getElementById('copyClipboardBtn');
+        const summarizeBtn = document.getElementById('summarizeBtn');
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                this.handleExportTxt();
+            });
+        }
+
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                this.handleCopyToClipboard();
+            });
+        }
+
+        if (summarizeBtn) {
+            summarizeBtn.addEventListener('click', () => {
+                this.handleSummarizeMeeting(summarizeBtn);
+            });
+        }
+    }
+
+    async handleExportTxt() {
+        const meeting = await this.getSelectedMeeting();
+        if (!meeting) return;
+
+        const text = this.generateMeetingPlainText(meeting);
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        const safeTitle = (meeting.meetingTitle || meeting.meetingId || 'meeting')
+            .replace(/[\\\/:*?"<>|]+/g, '_')
+            .slice(0, 100);
+        link.download = `${safeTitle || 'meeting'}.txt`;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    async handleCopyToClipboard() {
+        const meeting = await this.getSelectedMeeting();
+        if (!meeting) return;
+
+        const text = this.generateMeetingPlainText(meeting);
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+            }
+            alert('Meeting captions copied to clipboard.');
+        } catch (error) {
+            console.error('Failed to copy to clipboard:', error);
+            alert('Failed to copy to clipboard.');
+        }
+    }
+
+    async getGeminiApiKey() {
+        return new Promise((resolve) => {
+            try {
+                if (!chrome || !chrome.storage || !chrome.storage.sync) {
+                    resolve(null);
+                    return;
+                }
+                chrome.storage.sync.get(['geminiApiKey'], (result) => {
+                    resolve(result.geminiApiKey || null);
+                });
+            } catch (error) {
+                console.error('Error getting Gemini API key:', error);
+                resolve(null);
+            }
+        });
+    }
+
+    async getGeminiLanguagePreference() {
+        return new Promise((resolve) => {
+            try {
+                if (!chrome || !chrome.storage || !chrome.storage.sync) {
+                    resolve('en');
+                    return;
+                }
+                chrome.storage.sync.get(['geminiSummaryLanguage'], (result) => {
+                    const value = result.geminiSummaryLanguage;
+                    if (value === 'fa' || value === 'en') {
+                        resolve(value);
+                    } else {
+                        resolve('en');
+                    }
+                });
+            } catch (error) {
+                console.error('Error getting Gemini summary language:', error);
+                resolve('en');
+            }
+        });
+    }
+
+    async callGeminiSummarize(apiKey, text, language) {
+        const endpoint =
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent' +
+            `?key=${encodeURIComponent(apiKey)}`;
+        const languageName = language === 'fa' ? 'Persian (Farsi)' : 'English';
+        const prompt =
+            `Summarize the following meeting transcript into concise bullet points in ${languageName}, focusing on key topics, decisions, and action items. ` +
+            `Write the summary only in ${languageName}.\n\n` +
+            text;
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [
+                    {
+                        parts: [{ text: prompt }]
+                    }
+                ]
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Gemini API error: ${response.status} ${errorText}`);
+        }
+
+        const data = await response.json();
+        const candidate = data.candidates && data.candidates[0];
+        const parts = candidate && candidate.content && candidate.content.parts;
+        const summary =
+            parts && parts.length
+                ? parts
+                      .map((p) => p.text || '')
+                      .join('')
+                      .trim()
+                : '';
+        if (!summary) {
+            throw new Error('Gemini returned an empty summary.');
+        }
+        return summary;
+    }
+
+    showSummary(summaryText, language) {
+        const captionsElement = document.getElementById('captions');
+        if (!captionsElement) return;
+
+        let summaryContainer = captionsElement.querySelector('.summary-container');
+        if (!summaryContainer) {
+            summaryContainer = document.createElement('div');
+            summaryContainer.className = 'summary-container';
+            summaryContainer.innerHTML = `
+                <h3 class="summary-title">Summary</h3>
+                <div class="summary-body"></div>
+            `;
+
+            const titleContainer = captionsElement.querySelector('.meeting-title-container');
+            if (titleContainer) {
+                captionsElement.insertBefore(summaryContainer, titleContainer.nextSibling);
+            } else {
+                captionsElement.prepend(summaryContainer);
+            }
+        }
+
+        const languageLabel = language === 'fa' ? 'Persian' : 'English';
+        const titleEl = summaryContainer.querySelector('.summary-title');
+        if (titleEl) {
+            titleEl.textContent = `Summary (${languageLabel})`;
+        }
+
+        const bodyEl = summaryContainer.querySelector('.summary-body');
+        if (bodyEl) {
+            bodyEl.textContent = summaryText;
+        }
+    }
+
+    async handleSummarizeMeeting(buttonElement) {
+        const meeting = await this.getSelectedMeeting();
+        if (!meeting) return;
+
+        const apiKey = await this.getGeminiApiKey();
+        if (!apiKey) {
+            alert(
+                'Gemini API key is not set. Please open the extension options and save your Gemini API key first.'
+            );
+            return;
+        }
+
+        const language = await this.getGeminiLanguagePreference();
+
+        const originalHtml = buttonElement ? buttonElement.innerHTML : '';
+        if (buttonElement) {
+            buttonElement.disabled = true;
+            buttonElement.innerHTML =
+                '<span class="spin me-1"><i class="bi bi-arrow-repeat"></i></span>Summarizing...';
+        }
+
+        try {
+            const text = this.generateMeetingPlainText(meeting);
+            const summary = await this.callGeminiSummarize(apiKey, text, language);
+            this.showSummary(summary, language);
+            try {
+                await this.autoMeetingLogDB.updateMeetingSummary(
+                    meeting.meetingStartTime,
+                    summary,
+                    language
+                );
+            } catch (saveError) {
+                console.error('Failed to save summary to meeting record:', saveError);
+            }
+        } catch (error) {
+            console.error('Failed to summarize meeting:', error);
+            alert('Failed to summarize meeting: ' + (error.message || 'Unknown error'));
+        } finally {
+            if (buttonElement) {
+                buttonElement.disabled = false;
+                buttonElement.innerHTML = originalHtml || 'Summarize';
+            }
         }
     }
 
@@ -324,7 +602,12 @@ export class MeetingUI {
             const titleContainer = document.createElement("div");
             titleContainer.className = "meeting-title-container";
             titleContainer.innerHTML = `
-                <h2 class="meeting-title-header">${convertedMeeting.meetingTitle || convertedMeeting.meetingId}</h2>
+                <h2 class="meeting-title-header">
+                    ${convertedMeeting.meetingTitle || convertedMeeting.meetingId}
+                    <button type="button" class="btn btn-link btn-sm rename-meeting-btn">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </h2>
                 <div class="meeting-start-time">${new Date(convertedMeeting.meetingStartTime).toLocaleString(undefined, {
                     year: 'numeric',
                     month: 'long',
@@ -335,6 +618,45 @@ export class MeetingUI {
                 })}</div>
             `;
             captionsElement.appendChild(titleContainer);
+
+            const renameButton = titleContainer.querySelector('.rename-meeting-btn');
+            if (renameButton) {
+                renameButton.addEventListener('click', async () => {
+                    const currentTitle = convertedMeeting.meetingTitle || convertedMeeting.meetingId || '';
+                    const newTitle = prompt('Enter a new meeting name:', currentTitle);
+                    if (newTitle === null) {
+                        return;
+                    }
+                    const trimmed = newTitle.trim();
+                    if (!trimmed) {
+                        alert('Meeting name cannot be empty.');
+                        return;
+                    }
+                    try {
+                        const updated = await this.autoMeetingLogDB.updateMeetingTitle(
+                            convertedMeeting.meetingStartTime,
+                            trimmed
+                        );
+                        if (updated) {
+                            const headerEl = titleContainer.querySelector('.meeting-title-header');
+                            if (headerEl) {
+                                // First child node is the text node before the button
+                                headerEl.childNodes[0].textContent = trimmed + ' ';
+                            }
+                            this.loadMeetingList();
+                        } else {
+                            alert('Failed to update meeting name.');
+                        }
+                    } catch (error) {
+                        console.error('Error updating meeting name:', error);
+                        alert('Failed to update meeting name.');
+                    }
+                });
+            }
+
+            if (meeting.summaryText) {
+                this.showSummary(meeting.summaryText, meeting.summaryLanguage || 'en');
+            }
 
             const participantsContainer = document.createElement("div");
             participantsContainer.className = "participants-container";

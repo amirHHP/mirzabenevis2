@@ -44,6 +44,23 @@
 <body>
     <h3>Auto Meeting Log</h3>
     <button id="show-meetings-btn">Meeting Logs</button>
+
+    <h3 style="margin-top: 24px;">Gemini Settings</h3>
+    <label for="gemini-api-key" style="display:block; margin-top:8px; font-size:13px;">Gemini API Key</label>
+    <input id="gemini-api-key" type="password" style="width:100%; padding:6px; margin-top:4px; box-sizing:border-box;">
+    <small style="display:block; margin-top:4px; font-size:11px; color:#666;">
+        Stored securely in Chrome sync storage. Required for meeting summaries.
+    </small>
+
+    <label for="gemini-summary-language" style="display:block; margin-top:10px; font-size:13px;">Summary language</label>
+    <select id="gemini-summary-language" style="width:100%; padding:6px; margin-top:4px; box-sizing:border-box;">
+        <option value="en">English</option>
+        <option value="fa">Persian (Farsi)</option>
+    </select>
+
+    <button id="save-gemini-key-btn" style="margin-top:12px;">Save settings</button>
+    <div id="options-status" style="margin-top:8px; font-size:12px; color:green;"></div>
+
     <script src="options.js"></script>
 </body>
 

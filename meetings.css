@@ -19,6 +19,7 @@
     padding-right: 1rem;
     display: flex;
     align-items: center;
+    gap: 0.25rem;
 }
 
 .navbar-logo {
@@ -251,6 +252,19 @@ body {
     color: #1d1c1d;
     line-height: 1.33334;
     word-wrap: break-word;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.meeting-title-header .btn-link {
+    padding: 0 4px;
+    color: #616061;
+}
+
+.meeting-title-header .btn-link:hover {
+    color: #1d1c1d;
+    text-decoration: none;
 }
 
 .meeting-start-time {
@@ -474,6 +488,25 @@ body {
 
 .btn-sm {
     border-radius: 0.25rem;
+}
+
+.summary-container {
+    padding: 16px;
+    border-bottom: 1px solid rgba(29, 28, 29, 0.13);
+    background-color: #f8f9fa;
+}
+
+.summary-title {
+    margin: 0 0 8px 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1d1c1d;
+}
+
+.summary-body {
+    font-size: 0.9375rem;
+    color: #1d1c1d;
+    white-space: pre-wrap;
 }
 
 /* Modal Styles */
