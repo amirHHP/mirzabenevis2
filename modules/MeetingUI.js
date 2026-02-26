@@ -1,132 +1,133 @@
-import { GeminiService } from './GeminiService.js';
-
 export class MeetingUI {
     constructor(autoMeetingLogDB) {
         this.autoMeetingLogDB = autoMeetingLogDB;
         this.selectedMeetingStartTime = null;
-        this.currentMeeting = null;
-        this.geminiService = new GeminiService();
-        this.initializeButtons();
+        this.deleteModal = null;
+        this.initializeDeleteModal();
     }
 
-    initializeButtons() {
-        const copyButton = document.getElementById('copyToClipboard');
-        const exportButton = document.getElementById('exportToTxt');
-        const renameButton = document.getElementById('renameMeeting');
-        const removeButton = document.getElementById('removeMeeting');
-        const summarizeButton = document.getElementById('summarizeMeeting');
-
-        copyButton.addEventListener('click', () => this.copyToClipboard());
-        exportButton.addEventListener('click', () => this.exportToTxt());
-        summarizeButton.addEventListener('click', () => this.summarizeMeeting());
-
-        // Remove button logic
-        removeButton.addEventListener('click', async () => {
-            if (!this.currentMeeting) return;
-            if (confirm('Are you sure you want to remove this meeting log?')) {
-                await this.deleteMeeting(this.currentMeeting.meetingStartTime);
-                this.currentMeeting = null;
-                this.setActionButtonsEnabled(false);
-                document.getElementById('captions').hidden = true;
-            }
+    initializeDeleteModal() {
+        const modal = document.getElementById('deleteModal');
+        const confirmButton = document.getElementById('confirmDelete');
+        
+        // Bootstrap 5 Modal 인스턴스 생성
+        this.deleteModal = new bootstrap.Modal(modal, {
+            keyboard: true,
+            backdrop: 'static',  // 배경 클릭으로 닫히지 않도록 설정
+            focus: true          // 모달이 열릴 때 포커스 관리 활성화
         });
+        
+        if (confirmButton) {
+            confirmButton.addEventListener('click', async () => {
+                if (this.selectedMeetingStartTime) {
+                    try {
+                        await this.autoMeetingLogDB.deleteMeeting(this.selectedMeetingStartTime);
+                        
+                        // 삭제된 항목 찾기
+                        const deletedItem = document.querySelector(`[data-starttime="${this.selectedMeetingStartTime}"]`);
+                        if (deletedItem) {
+                            // 삭제 애니메이션 적용
+                            deletedItem.style.transition = 'all 0.2s ease-out';
+                            deletedItem.style.height = '0';
+                            deletedItem.style.opacity = '0';
+                            deletedItem.style.marginTop = '0';
+                            deletedItem.style.marginBottom = '0';
+                            
+                            // 애니메이션 완료 후 항목 제거
+                            setTimeout(() => {
+                                const parentContainer = deletedItem.closest('.meetings-container');
+                                if (parentContainer) {
+                                    deletedItem.remove();
+                                    
+                                    // 그룹 내 남은 항목 수 확인
+                                    const remainingItems = parentContainer.querySelectorAll('.list-group-item').length;
+                                    const groupHeader = parentContainer.previousElementSibling;
+                                    
+                                    if (remainingItems === 0 && groupHeader) {
+                                        // 그룹 내 항목이 없으면 그룹도 제거
+                                        const group = groupHeader.parentElement;
+                                        if (group) {
+                                            group.style.transition = 'all 0.2s ease-out';
+                                            group.style.height = '0';
+                                            group.style.opacity = '0';
+                                            group.style.marginTop = '0';
+                                            setTimeout(() => group.remove(), 200);
+                                        }
+                                    } else if (groupHeader) {
+                                        // 그룹 헤더의 카운트 업데이트
+                                        const countElement = groupHeader.querySelector('.count');
+                                        if (countElement) {
+                                            countElement.textContent = `(${remainingItems})`;
+                                        }
+                                    }
+                                }
+                            }, 200);
+                            
+                            // UI 상태 초기화
+                            const captionsElement = document.getElementById('captions');
+                            if (captionsElement) {
+                                captionsElement.innerHTML = '';
+                                captionsElement.hidden = true;
+                            }
+                            this.selectedMeetingStartTime = null;
+                        }
+                        
+                        this.deleteModal.hide();
+                    } catch (error) {
+                        console.error('Failed to delete meeting:', error);
+                        alert('Failed to delete meeting');
+                    }
+                }
+            });
+        }
 
-        // Rename button logic
-        renameButton.addEventListener('click', async () => {
-            if (!this.currentMeeting) return;
-            const newTitle = prompt('Enter new meeting name:', this.currentMeeting.meetingTitle);
-            if (newTitle && newTitle.trim() && newTitle !== this.currentMeeting.meetingTitle) {
-                await this.renameMeeting(this.currentMeeting.meetingStartTime, newTitle.trim());
-            }
-        });
+        // 모달 이벤트 리스너 추가
+        if (modal) {
+            // 모달이 표시되기 전
+            modal.addEventListener('show.bs.modal', () => {
+                // aria-hidden 속성 제거 (접근성 문제 해결)
+                modal.removeAttribute('aria-hidden');
+            });
 
-        this.setActionButtonsEnabled(false);
-    }
+            // 모달이 완전히 표시된 후
+            modal.addEventListener('shown.bs.modal', () => {
+                // 첫 번째 버튼에 포커스 설정 (Cancel 버튼)
+                const cancelButton = modal.querySelector('.btn-link');
+                if (cancelButton) {
+                    cancelButton.focus();
+                }
+            });
 
-    setActionButtonsEnabled(enabled) {
-        document.getElementById('renameMeeting').disabled = !enabled;
-        document.getElementById('removeMeeting').disabled = !enabled;
-        document.getElementById('copyToClipboard').disabled = !enabled;
-        document.getElementById('exportToTxt').disabled = !enabled;
-        document.getElementById('summarizeMeeting').disabled = !enabled;
-        // Hide notes panel if disabling
-        const notesPanel = document.getElementById('notes-panel');
-        if (!enabled && notesPanel) {
-            notesPanel.style.display = 'none';
+            // 모달이 숨겨지기 시작할 때
+            modal.addEventListener('hide.bs.modal', () => {
+                // aria-hidden 속성 복원
+                modal.setAttribute('aria-hidden', 'true');
+            });
+
+            // 모달이 완전히 닫힌 후 처리
+            modal.addEventListener('hidden.bs.modal', () => {
+                this.selectedMeetingStartTime = null;
+                const titleElement = document.getElementById('deleteMeetingTitle');
+                const timeElement = document.getElementById('deleteMeetingTime');
+                if (titleElement) titleElement.textContent = '';
+                if (timeElement) timeElement.textContent = '';
+            });
         }
     }
 
-    formatMessageForExport(message, participants) {
-        const speaker = participants[message.actorIndex];
-        const timestamp = new Date(message.timestamp).toLocaleString('en-US', {
-            timeZone: 'Asia/Seoul',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
+    // 미팅 시간을 포맷하는 함수
+    formatMeetingTime(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString(undefined, {
             hour: '2-digit',
             minute: '2-digit',
-            hour12: true
+            second: '2-digit',
+            hour12: false
         });
-        return `[${timestamp}] ${speaker.name}: ${message.text}`;
-    }
-
-    async copyToClipboard() {
-        if (!this.currentMeeting) return;
-
-        const convertedMeeting = this.convert(this.currentMeeting);
-        const messages = convertedMeeting.messages
-            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-            .map(message => this.formatMessageForExport(message, convertedMeeting.participants))
-            .join('\n');
-
-        try {
-            await navigator.clipboard.writeText(messages);
-            this.showToast('Copied to clipboard!', 'success');
-        } catch (err) {
-            this.showToast('Failed to copy to clipboard', 'error');
-            console.error('Failed to copy:', err);
-        }
-    }
-
-    exportToTxt() {
-        if (!this.currentMeeting) return;
-
-        const convertedMeeting = this.convert(this.currentMeeting);
-        const messages = convertedMeeting.messages
-            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-            .map(message => this.formatMessageForExport(message, convertedMeeting.participants))
-            .join('\n');
-
-        const blob = new Blob([messages], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${convertedMeeting.meetingTitle}_${new Date(convertedMeeting.meetingStartTime).toISOString().split('T')[0]}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast toast-${type}`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-
-        setTimeout(() => {
-            toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => {
-                    document.body.removeChild(toast);
-                }, 300);
-            }, 2000);
-        }, 100);
     }
 
     convertToKST(time, option = {}) {
-        return new Date(time).toLocaleString({ timeZone: "Asia/Seoul", ...option });
+        return new Date(time).toLocaleString(undefined, { timeZone: "Asia/Seoul", ...option });
     }
 
     convert(input) {
@@ -171,195 +172,48 @@ export class MeetingUI {
         return output;
     }
 
+    // 미팅 목록을 로드하고 표시
     async loadMeetingList() {
-        const meetings = await this.autoMeetingLogDB.getAllMeetings()
-        const meetingListElement = document.getElementById("meeting-list");
-        meetingListElement.innerHTML = "";
-
-        if (meetings) {
-            // Sort meetings in reverse chronological order.
-            meetings.sort((a, b) => new Date(b.meetingStartTime) - new Date(a.meetingStartTime));
-
-            meetings.forEach((meeting) => {
-                const li = document.createElement("li");
-                li.className = "list-group-item d-flex align-items-center justify-content-between";
-                li.setAttribute("data-starttime", meeting.meetingStartTime);
-
-                // Meeting title (with inline edit support)
-                const titleContainer = document.createElement("span");
-                titleContainer.className = "meeting-title-container flex-grow-1";
-                const title = document.createElement("strong");
-                title.textContent = meeting.meetingTitle;
-                title.className = "meeting-title-text";
-                titleContainer.appendChild(title);
-
-                // Inline edit input (hidden by default)
-                const editInput = document.createElement("input");
-                editInput.type = "text";
-                editInput.value = meeting.meetingTitle;
-                editInput.className = "form-control meeting-title-edit-input";
-                editInput.style.display = "none";
-                titleContainer.appendChild(editInput);
-
-                // Date
-                const date = document.createElement("small");
-                date.textContent = this.convertToKST(meeting.meetingStartTime);
-                date.className = "ml-2 text-muted";
-                titleContainer.appendChild(date);
-
-                // Notes input
-                const notesInput = document.createElement("input");
-                notesInput.type = "text";
-                notesInput.value = meeting.notes || "";
-                notesInput.placeholder = "Add notes...";
-                notesInput.className = "form-control meeting-notes-input";
-                notesInput.style.width = "150px";
-                notesInput.style.marginRight = "10px";
-                notesInput.addEventListener("change", async (e) => {
-                    const notes = e.target.value;
-                    await this.updateMeetingNotes(meeting.meetingStartTime, notes);
-                });
-                titleContainer.appendChild(notesInput);
-
-                // Icon container
-                const iconContainer = document.createElement("span");
-                iconContainer.className = "meeting-icon-container ml-2";
-
-                // Pen (edit) icon
-                const penIcon = document.createElement("i");
-                penIcon.className = "fas fa-pen text-primary meeting-pen-icon";
-                penIcon.title = "Rename";
-                penIcon.style.cursor = "pointer";
-                penIcon.style.marginRight = "10px";
-                iconContainer.appendChild(penIcon);
-
-                // Trash icon
-                const trashIcon = document.createElement("i");
-                trashIcon.className = "fas fa-trash text-danger meeting-trash-icon";
-                trashIcon.title = "Delete";
-                trashIcon.style.cursor = "pointer";
-                iconContainer.appendChild(trashIcon);
-
-                // Add to li
-                li.appendChild(titleContainer);
-                li.appendChild(iconContainer);
-
-                // Click to select meeting (ignore if editing)
-                li.addEventListener("click", (e) => {
-                    if (e.target === penIcon || e.target === trashIcon || editInput.style.display === "block") return;
-                    this.showMessages(meeting);
-                    this.setActiveMeeting(li);
-                });
-
-                // Pen icon click: show inline edit
-                penIcon.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    title.style.display = "none";
-                    editInput.style.display = "block";
-                    editInput.focus();
-                    editInput.select();
-                });
-
-                // Edit input: save on blur or Enter
-                editInput.addEventListener("keydown", (e) => {
-                    if (e.key === "Enter") {
-                        editInput.blur();
-                    }
-                });
-                editInput.addEventListener("blur", async () => {
-                    const newTitle = editInput.value.trim();
-                    if (newTitle && newTitle !== meeting.meetingTitle) {
-                        await this.renameMeeting(meeting.meetingStartTime, newTitle, title, editInput);
-                    } else {
-                        editInput.style.display = "none";
-                        title.style.display = "inline";
-                    }
-                });
-
-                // Trash icon click: delete with undo
-                trashIcon.addEventListener("click", async (e) => {
-                    e.stopPropagation();
-                    const removedLi = li;
-                    const removedMeeting = meeting;
-                    removedLi.style.display = "none";
-                    this.showToast('Meeting deleted. <a href="#" class="undo-link">Undo</a>', 'error');
-                    let undo = false;
-                    const undoHandler = (event) => {
-                        if (event.target.classList.contains('undo-link')) {
-                            event.preventDefault();
-                            undo = true;
-                            removedLi.style.display = "";
-                            this.showToast('Delete undone.', 'success');
-                            document.removeEventListener('click', undoHandler);
-                        }
-                    };
-                    document.addEventListener('click', undoHandler);
-                    setTimeout(async () => {
-                        document.removeEventListener('click', undoHandler);
-                        if (!undo) {
-                            await this.deleteMeeting(removedMeeting.meetingStartTime);
-                        }
-                    }, 4000);
-                });
-
-                meetingListElement.appendChild(li);
-            });
-
-            this.reloadSelectedMeeting(meetings);
+        try {
+            const meetings = await this.autoMeetingLogDB.getAllMeetings();
+            this.updateMeetingList(meetings);
+        } catch (error) {
+            console.error('Error loading meeting list:', error);
         }
     }
 
-    async deleteMeeting(meetingStartTime) {
-        return new Promise((resolve) => {
-            chrome.runtime.sendMessage({
-                type: "background.deleteMeeting",
-                meetingStartTime
-            }, (response) => {
-                if (response && response.success) {
-                    this.showToast('Meeting deleted.', 'success');
-                    this.loadMeetingList();
-                } else {
-                    this.showToast('Failed to delete meeting', 'error');
-                }
-                resolve();
-            });
-        });
-    }
+    async reloadSelectedMeeting(meetings) {
+        try {
+            if (this.selectedMeetingStartTime) {
+                const selectedItem = document.querySelector(`[data-starttime="${this.selectedMeetingStartTime}"]`);
+                if (selectedItem) {
+                    // 현재 선택된 미팅의 최신 데이터를 가져옵니다
+                    const selectedMeeting = await this.autoMeetingLogDB.getMeeting(this.selectedMeetingStartTime);
+                    if (selectedMeeting) {
+                        // 메시지 컨테이너의 현재 스크롤 위치를 저장
+                        const messagesContainer = document.getElementById("captions");
+                        if (!messagesContainer) return;
 
-    async renameMeeting(meetingStartTime, newTitle, titleElem, inputElem) {
-        return new Promise((resolve) => {
-            chrome.runtime.sendMessage({
-                type: "background.renameMeeting",
-                meetingStartTime,
-                newTitle
-            }, (response) => {
-                if (response && response.success) {
-                    titleElem.textContent = newTitle;
-                    inputElem.style.display = "none";
-                    titleElem.style.display = "inline";
-                    this.showToast('Meeting renamed.', 'success');
-                    this.loadMeetingList();
-                } else {
-                    this.showToast('Failed to rename meeting', 'error');
-                }
-                resolve();
-            });
-        });
-    }
+                        const wasScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 10;
+                        
+                        // 메시지를 업데이트
+                        this.showMessages(selectedMeeting);
 
-    reloadSelectedMeeting(meetings) {
-        if (this.selectedMeetingStartTime) {
-            const selectedItem = document.querySelector(`[data-starttime="${this.selectedMeetingStartTime}"]`);
-            if (selectedItem) {
-                const selectedMeeting = meetings.find((meeting) => meeting.meetingStartTime === this.selectedMeetingStartTime);
-                if (selectedMeeting) {
-                    this.showMessages(selectedMeeting);
-                    this.setActiveMeeting(selectedItem);
-
-                    // Scroll to the bottom of the messages container
-                const messagesContainer = document.getElementById("captions");
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                        // 이전에 스크롤이 맨 아래에 있었다면 다시 맨 아래로 스크롤
+                        if (wasScrolledToBottom) {
+                            setTimeout(() => {
+                                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                            }, 100);
+                        }
+                    }
                 }
+            }
+        } catch (error) {
+            console.error('Error reloading selected meeting:', error);
+            // Extension context가 무효화된 경우 페이지를 새로고침
+            if (error.message.includes('Extension context invalidated')) {
+                console.log('Extension context invalidated, reloading page...');
+                window.location.reload();
             }
         }
     }
@@ -370,12 +224,21 @@ export class MeetingUI {
         participantAvatar.src = participant.imageUrl;
         participantAvatar.alt = participant.name;
         participantAvatar.title = participant.name;
+        participantAvatar.setAttribute('data-participant-name', participant.name);
         participantAvatar.addEventListener("click", () => {
-            if (selectedParticipant !== participant.name) {
-                selectedParticipant = participant.name;
-                this.highlightMessagesBySpeaker(selectedParticipant);
+            const wasSelected = participantAvatar.classList.contains('selected');
+            
+            // 모든 참여자 아바타에서 selected 클래스 제거
+            document.querySelectorAll('.participant-avatar').forEach(avatar => {
+                avatar.classList.remove('selected');
+            });
+            
+            if (!wasSelected) {
+                // 현재 클릭된 참여자를 선택 상태로 만들기
+                participantAvatar.classList.add('selected');
+                this.highlightMessagesBySpeaker(participant.name);
             } else {
-                selectedParticipant = null;
+                // 이미 선택된 참여자를 다시 클릭하면 선택 해제
                 this.clearHighlightedMessages();
             }
         });
@@ -421,7 +284,7 @@ export class MeetingUI {
 
         const time = document.createElement("span");
         time.className = "time-text";
-        time.textContent = ' ' + new Date(timestamp).toLocaleTimeString({ timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: true });
+        time.textContent = ' ' + new Date(timestamp).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: true });
         name.appendChild(time);
         textContainer.appendChild(name);
 
@@ -443,77 +306,90 @@ export class MeetingUI {
     }
 
     showMessages(meeting) {
-        this.currentMeeting = meeting;
-        this.setActionButtonsEnabled(true);
-        const copyButton = document.getElementById('copyToClipboard');
-        const exportButton = document.getElementById('exportToTxt');
-        
-        copyButton.disabled = false;
-        exportButton.disabled = false;
+        try {
+            const convertedMeeting = this.convert(meeting);
+            const captionsElement = document.getElementById("captions");
+            if (!captionsElement) return;
 
-        const convertedMeeting = this.convert(meeting);
-        const captionsElement = document.getElementById("captions");
-        captionsElement.innerHTML = "";
+            // 현재 스크롤 위치 저장
+            const wasScrolledToBottom = captionsElement.scrollHeight - captionsElement.scrollTop <= captionsElement.clientHeight + 10;
+            
+            captionsElement.innerHTML = "";
 
-        let messages = convertedMeeting.messages;
-        let participants = convertedMeeting.participants;
-        let selectedParticipant = null;
+            let messages = convertedMeeting.messages;
+            let participants = convertedMeeting.participants;
+            let selectedParticipant = null;
 
-        const participantsContainer = document.createElement("div");
-        participantsContainer.className = "participants-container";
+            // 회의 제목 표시
+            const titleContainer = document.createElement("div");
+            titleContainer.className = "meeting-title-container";
+            titleContainer.innerHTML = `
+                <h2 class="meeting-title-header">${convertedMeeting.meetingTitle || convertedMeeting.meetingId}</h2>
+                <div class="meeting-start-time">${new Date(convertedMeeting.meetingStartTime).toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    weekday: 'long'
+                })}</div>
+            `;
+            captionsElement.appendChild(titleContainer);
 
-        participants.forEach(participant => {
-            const participantAvatar = this.createParticipantAvatar(participant, selectedParticipant);
-            participantsContainer.appendChild(participantAvatar);
-        });
+            const participantsContainer = document.createElement("div");
+            participantsContainer.className = "participants-container";
 
-        captionsElement.appendChild(participantsContainer);
+            participants.forEach(participant => {
+                const participantAvatar = this.createParticipantAvatar(participant, selectedParticipant);
+                participantsContainer.appendChild(participantAvatar);
+            });
 
-        let lastSpeaker = null;
-        let messageDiv = null;
-        let currentDate = null;
+            captionsElement.appendChild(participantsContainer);
 
-        messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            let lastSpeaker = null;
+            let messageDiv = null;
+            let currentDate = null;
 
-        messages.forEach((message) => {
-            const speaker = participants[message.actorIndex];
-            const text = message.text;
-            const timestamp = message.timestamp;
+            messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-            const messageDate = new Date(timestamp).toLocaleDateString({ timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" });
+            messages.forEach((message) => {
+                const speaker = participants[message.actorIndex];
+                const text = message.text;
+                const timestamp = message.timestamp;
 
-            if (currentDate !== messageDate) {
-                const dateDivider = this.createDateDivider(messageDate);
-                captionsElement.appendChild(dateDivider);
-                currentDate = messageDate;
+                const messageDate = new Date(timestamp).toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+
+                if (currentDate !== messageDate) {
+                    const dateDivider = this.createDateDivider(messageDate);
+                    captionsElement.appendChild(dateDivider);
+                    currentDate = messageDate;
+                }
+
+                if (lastSpeaker !== speaker.name) {
+                    messageDiv = this.createMessageElement(speaker, text, timestamp);
+                    captionsElement.appendChild(messageDiv);
+                } else {
+                    this.appendMessageToElement(messageDiv, text);
+                }
+
+                lastSpeaker = speaker.name;
+            });
+
+            captionsElement.hidden = false;
+
+            // 이전에 스크롤이 맨 아래에 있었다면 다시 맨 아래로 스크롤
+            if (wasScrolledToBottom) {
+                setTimeout(() => {
+                    captionsElement.scrollTop = captionsElement.scrollHeight;
+                }, 100);
             }
-
-            if (lastSpeaker !== speaker.name) {
-                messageDiv = this.createMessageElement(speaker, text, timestamp);
-                captionsElement.appendChild(messageDiv);
-            } else {
-                this.appendMessageToElement(messageDiv, text);
+        } catch (error) {
+            console.error('Error showing messages:', error);
+            // Extension context가 무효화된 경우 페이지를 새로고침
+            if (error.message.includes('Extension context invalidated')) {
+                console.log('Extension context invalidated, reloading page...');
+                window.location.reload();
             }
-
-            lastSpeaker = speaker.name;
-        });
-
-        captionsElement.hidden = false;
-
-        // Show and populate notes panel
-        const notesPanel = document.getElementById('notes-panel');
-        const notesInput = document.getElementById('meeting-notes-input');
-        const saveNotesBtn = document.getElementById('save-notes-btn');
-        const notesSavedMsg = document.getElementById('notes-saved-message');
-        if (notesPanel && notesInput && saveNotesBtn && notesSavedMsg) {
-            notesPanel.style.display = 'block';
-            notesInput.value = meeting.notes || '';
-            notesSavedMsg.style.display = 'none';
-            saveNotesBtn.onclick = async () => {
-                await this.updateMeetingNotes(meeting.meetingStartTime, notesInput.value);
-                notesSavedMsg.style.display = 'block';
-                setTimeout(() => { notesSavedMsg.style.display = 'none'; }, 1500);
-            };
         }
     }
 
@@ -542,131 +418,222 @@ export class MeetingUI {
     }
 
     setActiveMeeting(selectedItem) {
-        const meetingListElement = document.getElementById("meeting-list");
-        const items = meetingListElement.querySelectorAll("li");
+        const items = document.querySelectorAll('.list-group-item');
         items.forEach((item) => {
-            item.classList.remove("active");
+            item.classList.remove('active');
         });
-        selectedItem.classList.add("active");
-        this.selectedMeetingStartTime = selectedItem.getAttribute("data-starttime");
+        selectedItem.classList.add('active');
+        this.selectedMeetingStartTime = selectedItem.getAttribute('data-starttime');
     }
 
-    getSelectedMeeting() {
-        return this.currentMeeting;
-    }
-
-    convertMeetingToText(meeting) {
-        const convertedMeeting = this.convert(meeting);
-        const messages = convertedMeeting.messages
-            .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-            .map(message => this.formatMessageForExport(message, convertedMeeting.participants))
-            .join('\n');
-
-        return {
-            meetingId: meeting.meetingId,
-            text: messages
-        };
-    }
-
-    async summarizeMeeting() {
-        try {
-            console.log('Summarize button clicked');
-            const selectedMeeting = this.getSelectedMeeting();
-            if (!selectedMeeting) {
-                throw new Error('No meeting selected');
-            }
-
-            // Get language from storage
-            const language = await new Promise(resolve => {
-                chrome.storage.sync.get(['summaryLanguage'], result => {
-                    resolve(result.summaryLanguage || 'en');
-                });
-            });
-
-            console.log('Showing modal');
-            const modal = document.getElementById('summaryModal');
-            const summaryContent = document.getElementById('summaryContent');
-            modal.style.display = 'block';
-            modal.classList.add('show');
-
-            // Set direction and font for modal and content
-            if (language === 'fa') {
-                modal.setAttribute('dir', 'rtl');
-                summaryContent.style.fontFamily = 'Vazirmatn, Tahoma, Arial, sans-serif';
-            } else {
-                modal.setAttribute('dir', 'ltr');
-                summaryContent.style.fontFamily = '';
-            }
-
-            // Show loading spinner/message
-            summaryContent.innerHTML = `
-                <div class="spinner-border text-primary" role="status" style="display:inline-block;width:2rem;height:2rem;vertical-align:middle;"></div>
-                <span style="margin-left:1rem;vertical-align:middle;">Generating summary...</span>
-            `;
-
-            // Add event listeners for closing the modal
-            const closeButtons = modal.querySelectorAll('[data-dismiss="modal"]');
-            closeButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    modal.style.display = 'none';
-                    modal.classList.remove('show');
-                });
-            });
-
-            // Close modal when clicking outside
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    modal.style.display = 'none';
-                    modal.classList.remove('show');
-                }
-            });
-
-            console.log('Converting meeting');
-            const meeting = this.convertMeetingToText(selectedMeeting);
-            console.log('Meeting converted:', meeting);
-
-            console.log('Sending request to Gemini API');
-            const summary = await this.geminiService.summarizeMeeting(meeting.text, meeting.meetingId);
-            console.log('Summary received:', summary);
-
-            // Simple markdown to HTML converter
-            function simpleMarkdown(md) {
-                return md
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // bold
-                    .replace(/\*(.*?)\*/g, '<em>$1</em>') // italic
-                    .replace(/^\s*\* (.*)$/gm, '<li>$1</li>') // unordered list
-                    .replace(/\n{2,}/g, '</p><p>') // paragraphs
-                    .replace(/\n/g, '<br>') // line breaks
-                    .replace(/^<p>/, '')
-                    .replace(/<\/p>$/, '');
-            }
-
-            summaryContent.innerHTML = `<div class="summary-text"><p>${simpleMarkdown(summary)}</p></div>`;
-        } catch (error) {
-            console.error('Error in summarizeMeeting:', error);
-            const summaryContent = document.getElementById('summaryContent');
-            summaryContent.innerHTML = `
-                <div class="error-message">
-                    Error: ${error.message}
-                </div>
-            `;
+    selectMeeting(meeting) {
+        this.selectedMeetingStartTime = meeting.meetingStartTime;
+        this.showMessages(meeting);
+        
+        // 이전에 선택된 항목의 active 클래스 제거
+        const previousActive = document.querySelector('.list-group-item.active');
+        if (previousActive) {
+            previousActive.classList.remove('active');
+        }
+        
+        // 현재 선택된 항목에 active 클래스 추가
+        const currentItem = document.querySelector(`[data-starttime="${meeting.meetingStartTime}"]`);
+        if (currentItem) {
+            currentItem.classList.add('active');
         }
     }
 
-    async updateMeetingNotes(meetingStartTime, notes) {
-        return new Promise((resolve) => {
-            chrome.runtime.sendMessage({
-                type: "background.updateNotes",
-                meetingStartTime,
-                notes
-            }, (response) => {
-                if (response && response.success) {
-                    this.showToast('Notes saved.', 'success');
-                } else {
-                    this.showToast('Failed to save notes', 'error');
-                }
-                resolve();
-            });
+    showDeleteConfirmation(meeting) {
+        this.selectedMeetingStartTime = meeting.meetingStartTime;
+        
+        // 모달에 미팅 정보 표시
+        document.getElementById('deleteMeetingTitle').textContent = meeting.meetingTitle || '(Untitled)';
+        document.getElementById('deleteMeetingTime').textContent = new Date(meeting.meetingStartTime).toLocaleString(undefined, {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
         });
+        
+        // 모달 표시
+        this.deleteModal.show();
+    }
+
+    // 미팅 목록을 업데이트하되 선택 상태는 유지
+    updateMeetingList(meetings) {
+        const meetingList = document.querySelector('#meeting-list');
+        const existingGroups = new Map();
+        
+        // 기존 그룹 정보 저장
+        meetingList.querySelectorAll('.meeting-group').forEach(group => {
+            const header = group.querySelector('.meeting-group-header');
+            if (header) {
+                const date = header.getAttribute('data-date');
+                if (date) {
+                    existingGroups.set(date, group);
+                }
+            }
+        });
+
+        // 월별로 회의 그룹화
+        const meetingsByDate = {};
+        meetings.forEach(meeting => {
+            const date = new Date(meeting.meetingStartTime).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'long'
+            });
+            if (!meetingsByDate[date]) {
+                meetingsByDate[date] = [];
+            }
+            meetingsByDate[date].push(meeting);
+        });
+
+        // 각 월별 그룹 내에서 회의를 시간 역순으로 정렬
+        Object.values(meetingsByDate).forEach(meetings => {
+            meetings.sort((a, b) => new Date(b.meetingStartTime) - new Date(a.meetingStartTime));
+        });
+
+        // 월별로 정렬된 그룹 생성 또는 업데이트
+        const sortedDates = Object.entries(meetingsByDate)
+            .sort(([dateA, meetingsA], [dateB, meetingsB]) => {
+                // 각 그룹의 가장 최근 회의 시간으로 정렬
+                const latestA = Math.max(...meetingsA.map(m => new Date(m.meetingStartTime).getTime()));
+                const latestB = Math.max(...meetingsB.map(m => new Date(m.meetingStartTime).getTime()));
+                return latestB - latestA;  // 최신 월이 상단에 오도록 정렬
+            });
+
+        // 새로운 DOM 구조를 생성
+        const fragment = document.createDocumentFragment();
+
+        sortedDates.forEach(([date, meetings]) => {
+            let groupDiv = existingGroups.get(date);
+            const isNewGroup = !groupDiv;
+            
+            if (isNewGroup) {
+                // 새 그룹 생성
+                groupDiv = document.createElement('div');
+                groupDiv.className = 'meeting-group';
+                
+                const header = document.createElement('div');
+                header.className = 'meeting-group-header';
+                header.setAttribute('data-date', date);
+                header.innerHTML = `
+                    <i class="bi bi-calendar me-2"></i>
+                    ${date}
+                    <span class="count">(${meetings.length})</span>
+                    <i class="bi bi-chevron-down float-end"></i>
+                `;
+                
+                // 헤더 클릭 이벤트 추가
+                header.addEventListener('click', () => {
+                    header.classList.toggle('collapsed');
+                    const container = header.nextElementSibling;
+                    if (container) {
+                        container.classList.toggle('collapsed');
+                        if (container.classList.contains('collapsed')) {
+                            container.style.maxHeight = '0';
+                        } else {
+                            container.style.maxHeight = container.scrollHeight + 'px';
+                        }
+                    }
+                });
+                
+                const container = document.createElement('div');
+                container.className = 'meetings-container';
+                container.style.maxHeight = '1000px'; // 초기 상태는 펼쳐진 상태
+                
+                groupDiv.appendChild(header);
+                groupDiv.appendChild(container);
+            } else {
+                // 기존 그룹을 fragment로 이동
+                groupDiv.remove();
+            }
+
+            const container = groupDiv.querySelector('.meetings-container');
+            const existingMeetings = new Map();
+            
+            // 기존 미팅 정보 저장
+            container.querySelectorAll('.list-group-item').forEach(item => {
+                const startTime = item.getAttribute('data-starttime');
+                if (startTime) {
+                    existingMeetings.set(startTime, item);
+                }
+            });
+
+            // 미팅 목록 업데이트
+            meetings.forEach(meeting => {
+                const existingItem = existingMeetings.get(meeting.meetingStartTime);
+                
+                if (!existingItem) {
+                    // 새 미팅 항목 생성
+                    const li = document.createElement('div');
+                    li.className = 'list-group-item';
+                    li.setAttribute('data-starttime', meeting.meetingStartTime);
+                    
+                    const time = this.formatMeetingTime(meeting.meetingStartTime);
+                    const fullTitle = meeting.meetingTitle || meeting.meetingId;
+                    li.innerHTML = `
+                        <span class="meeting-title" title="${fullTitle}"># ${fullTitle}</span>
+                        <span class="meeting-time">${time}</span>
+                        <button class="delete-button" aria-label="Delete meeting">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    `;
+                    
+                    // 클릭 이벤트 리스너 추가
+                    li.addEventListener('click', (event) => {
+                        if (!event.target.closest('.delete-button')) {
+                            this.selectMeeting(meeting);
+                        }
+                    });
+                    
+                    // 삭제 버튼 이벤트 리스너
+                    const deleteButton = li.querySelector('.delete-button');
+                    if (deleteButton) {
+                        deleteButton.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                            this.showDeleteConfirmation(meeting);
+                        });
+                    }
+                    
+                    container.appendChild(li);
+                }
+                existingMeetings.delete(meeting.meetingStartTime);
+            });
+
+            // 더 이상 존재하지 않는 미팅 제거
+            existingMeetings.forEach((item) => {
+                item.remove();
+            });
+
+            // 그룹 내 미팅 수 업데이트
+            const countElement = groupDiv.querySelector('.count');
+            if (countElement) {
+                const currentCount = container.querySelectorAll('.list-group-item').length;
+                countElement.textContent = `(${currentCount})`;
+            }
+
+            fragment.appendChild(groupDiv);
+            existingGroups.delete(date);
+        });
+
+        // 더 이상 존재하지 않는 그룹 제거
+        existingGroups.forEach((group) => {
+            group.remove();
+        });
+
+        // 한 번에 DOM 업데이트
+        meetingList.innerHTML = '';
+        meetingList.appendChild(fragment);
+
+        // 현재 선택된 미팅이 있으면 active 상태 복원
+        if (this.selectedMeetingStartTime) {
+            const selectedItem = document.querySelector(`[data-starttime="${this.selectedMeetingStartTime}"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('active');
+            }
+        }
     }
 }

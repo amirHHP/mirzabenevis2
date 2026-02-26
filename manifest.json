@@ -3,7 +3,7 @@
 
   "manifest_version": 3,
   "name": "MirzaBenevis",
-  "version": "1.1.2",
+  "version": "2.0.0",
   "description": "Automatically turns on Google Meet captions and saves them.",
   "permissions": [
     "storage"
@@ -11,11 +11,8 @@
   "action": {
     "default_popup": "options.html",
     "default_icon": {
-      "16": "images/logo-16.png",
-      "32": "images/logo-32.png",
-      "48": "images/logo-48.png",
-      "128": "images/logo-128.png",
-      "512": "images/logo-512.png"
+      "128": "images/128-AutoMeetingLog.png",
+      "512": "images/512-AutoMeetingLog.png"
     }
   },
   "background": {
@@ -35,13 +32,13 @@
     }
   ],
   "icons": {
-    "16": "images/logo-16.png",
-    "32": "images/logo-32.png",
-    "48": "images/logo-48.png",
-    "128": "images/logo-128.png",
-    "512": "images/logo-512.png"
+    "128": "images/128-AutoMeetingLog.png",
+    "512": "images/512-AutoMeetingLog.png"
   },
   "host_permissions": [
     "https://meet.google.com/*"
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
 }

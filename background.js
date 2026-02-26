@@ -1,5 +1,6 @@
 import { AutoMeetingLogData as AutoMeetingLogData } from './modules/AutoMeetingLogData.js';
 import { DataRequestHandler } from './modules/DataRequestHandler.js';
+import { SyncInitializer } from './modules/SyncInitializer.js';
 
 console.log("Background script initialized");
 
@@ -23,27 +24,34 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   console.log(`Tab ${tabId} closed, ensuring all save requests are processed`);
 });
 
+// 확장 프로그램 설치/업데이트 시 초기화
+chrome.runtime.onInstalled.addListener(async () => {
+    const initializer = new SyncInitializer();
+    await initializer.initialize();
+});
+
+// 메시지 처리
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Background received message:", request.type);
+    console.log("Background received message:", request.type);
   
-  // 저장 요청인 경우 즉시 처리
-  if (request.type === "background.saveMeeting") {
-    console.log("Processing save request for meeting:", request.meetingInfo.meetingId);
-    
-    // 저장 요청 처리
-    const result = requestHandler.handleMessage(request, sender, sendResponse);
-    console.log("Save request result:", result);
-    
-    // 응답이 비동기인 경우에도 응답을 보장
-    if (result === true) {
-      return true; // 비동기 응답을 위해 true 반환
+    // 저장 요청인 경우 즉시 처리
+    if (request.type === "background.saveMeeting") {
+      console.log("Processing save request for meeting:", request.meetingInfo.meetingId);
+      
+      // 저장 요청 처리
+      const result = requestHandler.handleMessage(request, sender, sendResponse);
+      console.log("Save request result:", result);
+      
+      // 응답이 비동기인 경우에도 응답을 보장
+      if (result === true) {
+        return true; // 비동기 응답을 위해 true 반환
+      }
+      
+      return result;
     }
     
+    // 다른 메시지 처리
+    const result = requestHandler.handleMessage(request, sender, sendResponse);
+    console.log("Message handling result:", result);
     return result;
-  }
-  
-  // 다른 메시지 처리
-  const result = requestHandler.handleMessage(request, sender, sendResponse);
-  console.log("Message handling result:", result);
-  return result;
 });

@@ -34,23 +34,22 @@ export class DataRequestHandler {
         }
     }
 
-    async handleDeleteMeeting(request, sendResponse) {
+    async handleSyncWithDrive(sendResponse) {
         try {
-            await this.autoMeetingLogDB.deleteMeeting(request.meetingStartTime);
-            chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
-            sendResponse({ success: true });
+            const syncedCount = await this.autoMeetingLogDB.syncWithDrive();
+            console.log(`Synced ${syncedCount} meetings from Drive`);
+            sendResponse({ success: true, syncedCount });
+            
+            // UI 업데이트 메시지 전송
+            try {
+                chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
+                console.log("UI update message sent after sync");
+            } catch (error) {
+                console.log("UI update after sync skipped:", error);
+            }
         } catch (error) {
-            sendResponse({ success: false, message: error.message });
-        }
-    }
-
-    async handleRenameMeeting(request, sendResponse) {
-        try {
-            await this.autoMeetingLogDB.updateMeetingTitle(request.meetingStartTime, request.newTitle);
-            chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
-            sendResponse({ success: true });
-        } catch (error) {
-            sendResponse({ success: false, message: error.message });
+            console.error("Error syncing with Drive:", error);
+            sendResponse({ success: false, error: error.message });
         }
     }
 
@@ -59,16 +58,13 @@ export class DataRequestHandler {
         
         if (request.type === "background.getMeetings") {
             this.handleGetMeetings(sendResponse);
-            return true;
+            return true; // 비동기 응답을 위해 true 반환
         } else if (request.type === "background.saveMeeting") {
             this.handleSaveMeeting(request, sendResponse);
-            return true;
-        } else if (request.type === "background.deleteMeeting") {
-            this.handleDeleteMeeting(request, sendResponse);
-            return true;
-        } else if (request.type === "background.renameMeeting") {
-            this.handleRenameMeeting(request, sendResponse);
-            return true;
+            return true; // 비동기 응답을 위해 true 반환
+        } else if (request.type === "background.syncWithDrive") {
+            this.handleSyncWithDrive(sendResponse);
+            return true; // 비동기 응답을 위해 true 반환
         }
         return false;
     }
