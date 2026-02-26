@@ -385,6 +385,112 @@ body {
     background-color: #fff;
     height: 100%;
     min-width: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.meeting-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.meeting-main-column {
+    flex: 3;
+    min-width: 0;
+}
+
+.meeting-notes-column {
+    flex: 2;
+    min-width: 260px;
+    max-width: 420px;
+    border-left: 1px solid rgba(29, 28, 29, 0.13);
+    padding-left: 16px;
+}
+
+.notes-container {
+    position: sticky;
+    top: 16px;
+    background-color: #fafbfc;
+    border-radius: 8px;
+    border: 1px solid rgba(29, 28, 29, 0.13);
+    padding: 12px 12px 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.notes-header {
+    margin-bottom: 8px;
+}
+
+.notes-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1d1c1d;
+}
+
+.notes-subtitle {
+    margin: 2px 0 0 0;
+    font-size: 0.8125rem;
+    color: #616061;
+}
+
+.notes-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.notes-textarea {
+    width: 100%;
+    min-height: 180px;
+    resize: vertical;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(29, 28, 29, 0.25);
+    font-size: 0.9375rem;
+    line-height: 1.4;
+}
+
+.notes-textarea:focus {
+    outline: none;
+    border-color: #1164a3;
+    box-shadow: 0 0 0 1px rgba(17, 100, 163, 0.35);
+}
+
+.notes-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.notes-status {
+    font-size: 0.8125rem;
+}
+
+@media (max-width: 992px) {
+    .meeting-layout {
+        flex-direction: column;
+        max-width: 800px;
+    }
+
+    .meeting-notes-column {
+        border-left: none;
+        border-top: 1px solid rgba(29, 28, 29, 0.13);
+        padding-left: 0;
+        padding-top: 16px;
+        max-width: none;
+        width: 100%;
+    }
+
+    .notes-container {
+        position: static;
+    }
 }
 
 .empty-avatar {
@@ -496,6 +602,11 @@ body {
     background-color: #f8f9fa;
 }
 
+.summary-container.rtl {
+    direction: rtl;
+    text-align: right;
+}
+
 .summary-title {
     margin: 0 0 8px 0;
     font-size: 1rem;
@@ -506,7 +617,7 @@ body {
 .summary-body {
     font-size: 0.9375rem;
     color: #1d1c1d;
-    white-space: pre-wrap;
+    white-space: normal;
 }
 
 /* Modal Styles */

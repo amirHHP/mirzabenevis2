@@ -132,7 +132,6 @@ export class MeetingUI {
     }
 
     convert(input) {
-        // (convert 함수 내용)
         let output;
 
         if (!input.captions) {
@@ -382,11 +381,63 @@ export class MeetingUI {
         return summary;
     }
 
+    renderMarkdownToHtml(markdownText) {
+        if (!markdownText) return '';
+
+        const escapeHtml = (str) =>
+            str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+        const escaped = escapeHtml(markdownText);
+        const lines = escaped.split('\n');
+        let html = '';
+        let inList = false;
+
+        const flushList = () => {
+            if (inList) {
+                html += '</ul>';
+                inList = false;
+            }
+        };
+
+        lines.forEach((rawLine) => {
+            const line = rawLine.trimEnd();
+            if (!line.trim()) {
+                flushList();
+                html += '<br />';
+                return;
+            }
+
+            // Bold **text**
+            const withBold = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+            if (/^[-*]\s+/.test(withBold)) {
+                if (!inList) {
+                    html += '<ul>';
+                    inList = true;
+                }
+                const itemText = withBold.replace(/^[-*]\s+/, '');
+                html += `<li>${itemText}</li>`;
+            } else {
+                flushList();
+                html += `<p>${withBold}</p>`;
+            }
+        });
+
+        flushList();
+        return html;
+    }
+
     showSummary(summaryText, language) {
         const captionsElement = document.getElementById('captions');
         if (!captionsElement) return;
 
-        let summaryContainer = captionsElement.querySelector('.summary-container');
+        const mainContainer =
+            captionsElement.querySelector('.meeting-main-column') || captionsElement;
+
+        let summaryContainer = mainContainer.querySelector('.summary-container');
         if (!summaryContainer) {
             summaryContainer = document.createElement('div');
             summaryContainer.className = 'summary-container';
@@ -395,12 +446,18 @@ export class MeetingUI {
                 <div class="summary-body"></div>
             `;
 
-            const titleContainer = captionsElement.querySelector('.meeting-title-container');
+            const titleContainer = mainContainer.querySelector('.meeting-title-container');
             if (titleContainer) {
-                captionsElement.insertBefore(summaryContainer, titleContainer.nextSibling);
+                mainContainer.insertBefore(summaryContainer, titleContainer.nextSibling);
             } else {
-                captionsElement.prepend(summaryContainer);
+                mainContainer.prepend(summaryContainer);
             }
+        }
+
+        if (language === 'fa') {
+            summaryContainer.classList.add('rtl');
+        } else {
+            summaryContainer.classList.remove('rtl');
         }
 
         const languageLabel = language === 'fa' ? 'Persian' : 'English';
@@ -411,7 +468,7 @@ export class MeetingUI {
 
         const bodyEl = summaryContainer.querySelector('.summary-body');
         if (bodyEl) {
-            bodyEl.textContent = summaryText;
+            bodyEl.innerHTML = this.renderMarkdownToHtml(summaryText);
         }
     }
 
@@ -594,6 +651,19 @@ export class MeetingUI {
             
             captionsElement.innerHTML = "";
 
+            const layoutContainer = document.createElement('div');
+            layoutContainer.className = 'meeting-layout';
+
+            const mainColumn = document.createElement('div');
+            mainColumn.className = 'meeting-main-column';
+
+            const notesColumn = document.createElement('div');
+            notesColumn.className = 'meeting-notes-column';
+
+            layoutContainer.appendChild(mainColumn);
+            layoutContainer.appendChild(notesColumn);
+            captionsElement.appendChild(layoutContainer);
+
             let messages = convertedMeeting.messages;
             let participants = convertedMeeting.participants;
             let selectedParticipant = null;
@@ -617,7 +687,7 @@ export class MeetingUI {
                     weekday: 'long'
                 })}</div>
             `;
-            captionsElement.appendChild(titleContainer);
+            mainColumn.appendChild(titleContainer);
 
             const renameButton = titleContainer.querySelector('.rename-meeting-btn');
             if (renameButton) {
@@ -666,7 +736,87 @@ export class MeetingUI {
                 participantsContainer.appendChild(participantAvatar);
             });
 
-            captionsElement.appendChild(participantsContainer);
+            mainColumn.appendChild(participantsContainer);
+
+            const notesContainer = document.createElement('div');
+            notesContainer.className = 'notes-container';
+            notesContainer.innerHTML = `
+                <div class="notes-header">
+                    <h3 class="notes-title">Notes</h3>
+                    <p class="notes-subtitle">Private notes for this meeting</p>
+                </div>
+                <div class="notes-body">
+                    <textarea class="notes-textarea" placeholder="Write anything you want about this meeting..."></textarea>
+                    <div class="notes-footer">
+                        <button type="button" class="btn btn-sm btn-primary notes-save-btn">
+                            <i class="bi bi-save me-1"></i>
+                            Save
+                        </button>
+                        <span class="notes-status"></span>
+                    </div>
+                </div>
+            `;
+            notesColumn.appendChild(notesContainer);
+
+            const notesTextarea = notesContainer.querySelector('.notes-textarea');
+            const notesSaveBtn = notesContainer.querySelector('.notes-save-btn');
+            const notesStatus = notesContainer.querySelector('.notes-status');
+
+            if (notesTextarea) {
+                notesTextarea.value = meeting.notesText || '';
+            }
+
+            const updateStatus = (text, type) => {
+                if (!notesStatus) return;
+                notesStatus.textContent = text || '';
+                notesStatus.classList.remove('text-success', 'text-danger', 'text-muted');
+                if (type) {
+                    notesStatus.classList.add(type);
+                }
+            };
+
+            const saveNotes = async () => {
+                if (!notesTextarea || !notesSaveBtn) return;
+                const currentText = notesTextarea.value;
+                const originalHtml = notesSaveBtn.innerHTML;
+                notesSaveBtn.disabled = true;
+                notesSaveBtn.innerHTML =
+                    '<span class="spin me-1"><i class="bi bi-arrow-repeat"></i></span>Saving...';
+                updateStatus('', null);
+
+                try {
+                    const ok = await this.autoMeetingLogDB.updateMeetingNotes(
+                        convertedMeeting.meetingStartTime,
+                        currentText
+                    );
+                    if (ok) {
+                        meeting.notesText = currentText;
+                        updateStatus('Saved', 'text-success');
+                    } else {
+                        updateStatus('Unable to save notes for this meeting.', 'text-danger');
+                    }
+                } catch (error) {
+                    console.error('Error saving meeting notes:', error);
+                    updateStatus('Failed to save notes', 'text-danger');
+                } finally {
+                    notesSaveBtn.disabled = false;
+                    notesSaveBtn.innerHTML = originalHtml;
+                }
+            };
+
+            if (notesSaveBtn) {
+                notesSaveBtn.addEventListener('click', () => {
+                    saveNotes();
+                });
+            }
+
+            if (notesTextarea) {
+                notesTextarea.addEventListener('blur', () => {
+                    if ((meeting.notesText || '') !== notesTextarea.value) {
+                        saveNotes();
+                    }
+                });
+            }
 
             let lastSpeaker = null;
             let messageDiv = null;
@@ -683,13 +833,13 @@ export class MeetingUI {
 
                 if (currentDate !== messageDate) {
                     const dateDivider = this.createDateDivider(messageDate);
-                    captionsElement.appendChild(dateDivider);
+                    mainColumn.appendChild(dateDivider);
                     currentDate = messageDate;
                 }
 
                 if (lastSpeaker !== speaker.name) {
                     messageDiv = this.createMessageElement(speaker, text, timestamp);
-                    captionsElement.appendChild(messageDiv);
+                    mainColumn.appendChild(messageDiv);
                 } else {
                     this.appendMessageToElement(messageDiv, text);
                 }

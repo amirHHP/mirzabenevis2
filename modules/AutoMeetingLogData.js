@@ -289,6 +289,45 @@ export class AutoMeetingLogData {
         });
     }
 
+    async updateMeetingNotes(meetingStartTime, notesText) {
+        const db = await this.open();
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['meetings'], 'readwrite');
+            const objectStore = transaction.objectStore('meetings');
+            const request = objectStore.get(meetingStartTime);
+
+            request.onsuccess = (event) => {
+                const meeting = event.target.result;
+                if (!meeting) {
+                    resolve(false);
+                    return;
+                }
+
+                const updatedMeeting = {
+                    ...meeting,
+                    notesText: notesText || '',
+                    notesUpdatedAt: new Date().toISOString()
+                };
+
+                const updateRequest = objectStore.put(updatedMeeting);
+
+                updateRequest.onsuccess = () => {
+                    resolve(true);
+                };
+
+                updateRequest.onerror = (updateEvent) => {
+                    console.error('Error updating meeting notes:', updateEvent.target.error);
+                    reject(updateEvent.target.error);
+                };
+            };
+
+            request.onerror = (event) => {
+                console.error('Error loading meeting for notes update:', event.target.error);
+                reject(event.target.error);
+            };
+        });
+    }
+
     async mergeMeetings(meetings) {
         const db = await this.open();
         return new Promise((resolve, reject) => {
