@@ -1,376 +1,1825 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MirzaBenevis - Auto Meeting Log</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>MirzaBenevis - Auto Google Meet Transcript Recorder</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
+        /* Color Palette & Custom Properties */
         :root {
-            --primary-color: #3498DB;
-            --secondary-color: #2C3E50;
+            --bg-color: #070a13;
+            --card-bg: rgba(15, 22, 38, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --card-border-glow: rgba(56, 189, 248, 0.3);
+            
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            
+            --primary: #38bdf8;
+            --primary-rgb: 56, 189, 248;
+            --secondary: #818cf8;
+            --secondary-rgb: 129, 140, 248;
+            --accent: #c084fc;
+            --success: #34d399;
+            
+            --font-en: 'Plus Jakarta Sans', sans-serif;
+            --font-fa: 'Vazirmatn', sans-serif;
+            --current-font: var(--font-en);
+            
+            --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        
+
+        [dir="rtl"] {
+            --current-font: var(--font-fa);
+        }
+
+        /* Base Resets */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: var(--current-font);
+            overflow-x: hidden;
             line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .hero {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            color: white;
-            padding: 100px 0;
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
         }
 
-        .feature-card {
-            border: none;
-            border-radius: 15px;
-            transition: transform 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        /* Ambient Background Blobs */
+        .ambient-glow {
+            position: absolute;
+            width: 50vw;
+            height: 50vw;
+            max-width: 600px;
+            max-height: 600px;
+            border-radius: 50%;
+            filter: blur(120px);
+            z-index: -1;
+            opacity: 0.15;
+            pointer-events: none;
+        }
+        .glow-1 {
+            top: -10%;
+            left: -10%;
+            background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+        }
+        .glow-2 {
+            top: 40%;
+            right: -10%;
+            background: radial-gradient(circle, var(--secondary) 0%, transparent 70%);
+        }
+        .glow-3 {
+            bottom: -5%;
+            left: 20%;
+            background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
         }
 
-        .feature-card:hover {
-            transform: translateY(-5px);
+        /* Layout Container */
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
         }
 
-        .feature-icon {
-            font-size: 2.5rem;
-            color: var(--primary-color);
-            margin-bottom: 1rem;
+        /* Utility Styles */
+        .text-gradient {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 50%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
-        .logo {
-            width: 64px;
-            height: 64px;
-            margin-right: 1rem;
-            object-fit: contain;
-        }
-
-        .navbar {
-            background-color: white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .navbar-brand {
-            font-weight: bold;
-            color: var(--secondary-color) !important;
-        }
-
-        .cta-button {
-            background-color: var(--primary-color);
-            border: none;
-            padding: 12px 30px;
-            border-radius: 25px;
-            font-weight: bold;
-            transition: transform 0.3s ease;
-            margin: 0 10px;
-        }
-
-        .cta-button:hover {
-            transform: scale(1.05);
-            background-color: #2980b9;
-        }
-
-        .download-button {
-            background-color: #2ecc71;
-        }
-
-        .download-button:hover {
-            background-color: #27ae60;
-        }
-
-        .button-group {
-            display: flex;
+        /* Buttons & Actions */
+        .btn {
+            display: inline-flex;
+            align-items: center;
             justify-content: center;
-            gap: 1rem;
-            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px 28px;
+            border-radius: 9999px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            border: 1px solid transparent;
+            font-family: inherit;
         }
 
-        .timeline {
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: #0e1626;
+            background: #f8fafc;
+            border: 1px solid var(--text-primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(56, 189, 248, 0.2);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--text-secondary);
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: rgba(52, 211, 153, 0.1);
+            border: 1px solid rgba(52, 211, 153, 0.3);
+            color: var(--success);
+        }
+
+        .btn-success:hover {
+            background: var(--success);
+            color: #0e1626;
+            box-shadow: 0 10px 20px rgba(52, 211, 153, 0.25);
+            transform: translateY(-2px);
+        }
+
+        /* Glassmorphism Card Style */
+        .glass-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: var(--transition-smooth);
+        }
+
+        .glass-card:hover {
+            border-color: var(--card-border-glow);
+            box-shadow: 0 12px 30px rgba(56, 189, 248, 0.05);
+        }
+
+        /* Navigation Bar */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 80px;
+            z-index: 1000;
+            background: rgba(7, 10, 19, 0.8);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--card-border);
+            transition: var(--transition-smooth);
+        }
+
+        .navbar .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 100%;
+        }
+
+        .nav-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+            font-weight: 800;
+            font-size: 1.3rem;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-logo img {
+            width: 38px;
+            height: 38px;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+        }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: var(--transition-smooth);
             position: relative;
-            padding: 20px 0;
         }
 
-        .timeline::before {
+        .nav-link:hover {
+            color: var(--primary);
+        }
+
+        .nav-link::after {
             content: '';
             position: absolute;
-            width: 2px;
-            background: var(--primary-color);
-            top: 0;
-            bottom: 0;
-            left: 50%;
-            margin-left: -1px;
+            bottom: -6px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary);
+            transition: var(--transition-smooth);
         }
 
-        .timeline-item {
-            margin-bottom: 40px;
+        [dir="rtl"] .nav-menu {
+            flex-direction: row-reverse;
+        }
+
+        .nav-link:hover::after {
+            width: 100%;
+        }
+
+        /* Language Toggle & Hamburger */
+        .nav-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .lang-toggle {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: var(--transition-smooth);
+            font-family: inherit;
+        }
+
+        .lang-toggle:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--primary);
+        }
+
+        .nav-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 160px 0 80px 0;
             position: relative;
         }
 
-        .timeline-badge {
-            width: 40px;
-            height: 40px;
-            background: var(--primary-color);
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 48px;
+            align-items: center;
+        }
+
+        .hero-content {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        [dir="rtl"] .hero-content {
+            align-items: flex-start;
+            text-align: right;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            border-radius: 99px;
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            color: var(--primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .hero-badge i {
+            font-size: 0.75rem;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: -1px;
+            margin-bottom: 24px;
+        }
+
+        [dir="rtl"] .hero-title {
+            font-size: 3.2rem;
+            line-height: 1.3;
+        }
+
+        .hero-description {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+            max-width: 520px;
+        }
+
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        /* Interactive Meet & MirzaBenevis Mockup */
+        .hero-visual {
+            position: relative;
+            width: 100%;
+            height: 420px;
+            border-radius: 24px;
+            background: #0b0f19;
+            border: 1px solid var(--card-border);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* Google Meet Simulated Left Panel */
+        .mock-meet {
+            width: 60%;
+            height: 100%;
+            border-right: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: #0f1322;
+        }
+
+        [dir="rtl"] .mock-meet {
+            border-right: none;
+            border-left: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .mock-meet-header {
+            padding: 12px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .meet-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .meet-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--success);
             border-radius: 50%;
-            position: absolute;
-            left: 50%;
-            margin-left: -20px;
+            animation: pulse 1.5s infinite;
+        }
+
+        .mock-meet-grid {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 8px;
+            padding: 8px;
+        }
+
+        .meet-user {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            z-index: 1;
+            position: relative;
+            overflow: hidden;
         }
 
-        .timeline-content {
-            width: calc(50% - 40px);
-            padding: 20px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        .meet-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: var(--card-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            border: 2px solid transparent;
+            transition: var(--transition-smooth);
+        }
+
+        .meet-user.speaking .meet-avatar {
+            border-color: var(--primary);
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+            transform: scale(1.05);
+        }
+
+        .meet-user-name {
+            position: absolute;
+            bottom: 6px;
+            left: 8px;
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            background: rgba(0,0,0,0.6);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        [dir="rtl"] .meet-user-name {
+            left: auto;
+            right: 8px;
+        }
+
+        .meet-mic {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+
+        [dir="rtl"] .meet-mic {
+            right: auto;
+            left: 8px;
+        }
+
+        .meet-user.speaking .meet-mic {
+            color: var(--primary);
+        }
+
+        /* Captions Banner overlay at bottom of Meet */
+        .meet-captions-overlay {
+            position: absolute;
+            bottom: 12px;
+            left: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 10px 14px;
+            min-height: 56px;
+            font-size: 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            z-index: 5;
+            transition: var(--transition-smooth);
+        }
+
+        .caption-speaker {
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .caption-text {
+            color: var(--text-primary);
+        }
+
+        /* MirzaBenevis Extension Right Panel */
+        .mock-extension {
+            width: 40%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: #111827;
+        }
+
+        .ext-header {
+            padding: 12px;
+            background: #1f2937;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .ext-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--primary);
+        }
+
+        .ext-title img {
+            width: 16px;
+            height: 16px;
+        }
+
+        .ext-badge {
+            background: var(--primary);
+            color: #0b0f19;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.6rem;
+            font-weight: 800;
+        }
+
+        .ext-body {
+            flex: 1;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow-y: auto;
             position: relative;
         }
 
-        .timeline-item:nth-child(odd) .timeline-content {
-            margin-left: auto;
+        .ext-log-title {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
         }
 
-        .timeline-content h4 {
-            color: var(--primary-color);
-            margin-bottom: 15px;
+        .ext-log-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
-        .timeline-content ul {
-            padding-left: 20px;
-            margin-bottom: 0;
+        .ext-log-item {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 0.7rem;
+            animation: slideIn 0.3s ease forwards;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
-        .timeline-content li {
+        .ext-log-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.6rem;
+            color: var(--text-muted);
+        }
+
+        .ext-log-user {
+            font-weight: 700;
+            color: var(--secondary);
+        }
+
+        .ext-log-text {
+            color: var(--text-secondary);
+            word-break: break-word;
+        }
+
+        /* Section Global Setup */
+        section {
+            padding: 100px 0;
+            position: relative;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .section-subtitle {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        /* Features Section */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+
+        .feature-card {
+            padding: 40px 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        [dir="rtl"] .feature-card {
+            align-items: flex-start;
+            text-align: right;
+        }
+
+        .feature-icon-box {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: rgba(56, 189, 248, 0.06);
+            border: 1px solid rgba(56, 189, 248, 0.1);
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            margin-bottom: 28px;
+            transition: var(--transition-smooth);
+        }
+
+        .feature-card:hover .feature-icon-box {
+            background: var(--primary);
+            color: #0b0f19;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+            transform: scale(1.05);
+        }
+
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .feature-desc {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Installation Section */
+        .installation-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .install-tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 6px;
+            margin-bottom: 32px;
+        }
+
+        [dir="rtl"] .install-tabs {
+            flex-direction: row-reverse;
+        }
+
+        .install-tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 12px;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .install-tab-btn.active {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            color: var(--primary);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .install-tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .install-tab-content.active {
+            display: block;
+        }
+
+        .step-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .step-item {
+            display: flex;
+            gap: 20px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid var(--card-border);
+            padding: 24px;
+            border-radius: 16px;
+            align-items: flex-start;
+        }
+
+        [dir="rtl"] .step-item {
+            flex-direction: row-reverse;
+            text-align: right;
+        }
+
+        .step-number {
+            width: 36px;
+            height: 36px;
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            color: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+
+        .step-text-title {
+            font-size: 1.1rem;
+            font-weight: 700;
             margin-bottom: 8px;
+            color: var(--text-primary);
         }
 
-        .timeline-content li:last-child {
+        .step-text-desc {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        /* Roadmap Timeline Section */
+        .roadmap-container {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+            padding-left: 32px;
+        }
+
+        [dir="rtl"] .roadmap-container {
+            padding-left: 0;
+            padding-right: 32px;
+        }
+
+        .roadmap-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 15px;
+            width: 2px;
+            background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 50%, rgba(255,255,255,0.05) 100%);
+        }
+
+        [dir="rtl"] .roadmap-line {
+            left: auto;
+            right: 15px;
+        }
+
+        .roadmap-node {
+            position: relative;
+            margin-bottom: 56px;
+        }
+
+        .roadmap-node:last-child {
             margin-bottom: 0;
+        }
+
+        .roadmap-dot {
+            position: absolute;
+            left: -24px;
+            top: 24px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--bg-color);
+            border: 3px solid var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            z-index: 10;
+        }
+
+        [dir="rtl"] .roadmap-dot {
+            left: auto;
+            right: -24px;
+        }
+
+        .node-completed .roadmap-dot {
+            background: var(--success);
+            border-color: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .node-future .roadmap-dot {
+            border-color: var(--text-muted);
+            box-shadow: none;
+        }
+
+        .roadmap-card {
+            padding: 32px;
+        }
+
+        .roadmap-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        [dir="rtl"] .roadmap-meta {
+            flex-direction: row-reverse;
+        }
+
+        .roadmap-ver {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .roadmap-status {
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .status-released {
+            background: rgba(52, 211, 153, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(52, 211, 153, 0.2);
+        }
+
+        .status-progress {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--primary);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+
+        .status-planned {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            border: 1px solid var(--card-border);
+        }
+
+        .roadmap-list {
+            list-style: none;
+            padding-left: 20px;
+        }
+
+        [dir="rtl"] .roadmap-list {
+            padding-left: 0;
+            padding-right: 20px;
+            text-align: right;
+        }
+
+        .roadmap-item {
+            position: relative;
+            margin-bottom: 10px;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .roadmap-item::before {
+            content: "•";
+            color: var(--primary);
+            font-weight: bold;
+            display: inline-block;
+            width: 1em;
+            margin-left: -1em;
+        }
+
+        [dir="rtl"] .roadmap-item::before {
+            margin-left: 0;
+            margin-right: -1em;
+            width: 1em;
+        }
+
+        .node-completed .roadmap-item::before {
+            color: var(--success);
+        }
+
+        .roadmap-item:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Donate Banner Section */
+        .donate-section {
+            padding: 80px 0;
+        }
+
+        .donate-card {
+            padding: 60px 40px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .donate-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(129, 140, 248, 0.05) 0%, transparent 60%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .donate-title {
+            font-size: 2rem;
+            font-weight: 800;
+            z-index: 1;
+        }
+
+        .donate-desc {
+            max-width: 600px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            z-index: 1;
+        }
+
+        .donate-actions {
+            z-index: 1;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--card-border);
+            padding: 48px 0;
+            background: #04060b;
+        }
+
+        .footer-grid {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+
+        [dir="rtl"] .footer-grid {
+            flex-direction: row-reverse;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .footer-logo img {
+            width: 28px;
+            height: 28px;
+        }
+
+        .footer-copyright {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 1.1rem;
+            transition: var(--transition-smooth);
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        /* Keyframes */
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.6; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(12px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Responsiveness Media Queries */
+        @media (max-width: 968px) {
+            .hero-grid {
+                grid-template-columns: 1fr;
+                gap: 48px;
+            }
+            .hero-visual {
+                height: 380px;
+            }
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
 
         @media (max-width: 768px) {
-            .timeline::before {
-                left: 40px;
+            .nav-menu {
+                display: none;
             }
-
-            .timeline-badge {
-                left: 40px;
+            .nav-toggle {
+                display: block;
             }
-
-            .timeline-content {
-                width: calc(100% - 80px);
-                margin-left: 80px !important;
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+            .hero-title {
+                font-size: 2.5rem;
+            }
+            [dir="rtl"] .hero-title {
+                font-size: 2.4rem;
+            }
+            .hero-visual {
+                height: 340px;
+            }
+            .donate-card {
+                padding: 40px 24px;
             }
         }
     </style>
 </head>
 <body>
+
+    <!-- Ambient Glow effects -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light fixed-top">
+    <nav class="navbar">
         <div class="container">
-            <a class="navbar-brand d-flex align-items-center" href="#">
-                <img src="images/logo-48.png" alt="MirzaBenevis Logo" class="logo">
-                MirzaBenevis
+            <a href="#" class="nav-logo">
+                <img src="images/128-AutoMeetingLog.png" alt="MirzaBenevis Logo">
+                <span>MirzaBenevis</span>
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#features">Features</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#installation">Installation</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#roadmap">Roadmap</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="https://zarinp.al/710727">Donate</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="https://github.com/amirHHP/mirzabenevis2" target="_blank">GitHub</a>
-                    </li>
-                </ul>
+            
+            <ul class="nav-menu" id="nav-links">
+                <li><a href="#features" class="nav-link" data-key="nav-features">Features</a></li>
+                <li><a href="#installation" class="nav-link" data-key="nav-installation">Installation</a></li>
+                <li><a href="#roadmap" class="nav-link" data-key="nav-roadmap">Roadmap</a></li>
+                <li><a href="https://zarinp.al/710727" target="_blank" class="nav-link" data-key="nav-donate">Donate</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <button class="lang-toggle" id="lang-btn">
+                    <i class="fa-solid fa-globe"></i>
+                    <span id="lang-text">FA</span>
+                </button>
+                <a href="https://github.com/amirHHP/mirzabenevis2" target="_blank" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.85rem;">
+                    <i class="fa-brands fa-github"></i> GitHub
+                </a>
             </div>
         </div>
     </nav>
 
     <!-- Hero Section -->
     <section class="hero">
-        <div class="container text-center">
-            <h1 class="display-4 mb-4">MirzaBenevis</h1>
-            <p class="lead mb-5">Automatically capture and save your Google Meet conversations with style</p>
-            <div class="button-group">
-                <a href="#installation" class="btn btn-light cta-button">Get Started</a>
-                <a href="https://zarinp.al/710727" class="btn btn-light cta-button">Donate</a>
-                <a href="https://github.com/amirHHP/mirzabenevis2/archive/refs/heads/main.zip" class="btn btn-light cta-button download-button">
-                    <i class="fas fa-download"></i> Download ZIP
-                </a>
+        <div class="container hero-grid">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <i class="fa-solid fa-sparkles"></i>
+                    <span data-key="hero-badge">Smart Google Meet Assistant</span>
+                </div>
+                <h1 class="hero-title" data-key="hero-title">
+                    Capture Your Meetings <span class="text-gradient">With Style</span>
+                </h1>
+                <p class="hero-description" data-key="hero-desc">
+                    Automatically capture and format Google Meet conversations, track participants, and export rich transcripts securely.
+                </p>
+                <div class="hero-actions">
+                    <a href="#installation" class="btn btn-primary" data-key="hero-btn-start">Get Started</a>
+                    <a href="https://zarinp.al/710727" target="_blank" class="btn btn-success" data-key="hero-btn-donate">
+                        <i class="fa-solid fa-heart"></i> Donate
+                    </a>
+                </div>
+            </div>
+
+            <!-- Animated Simulated Google Meet / MirzaBenevis Visualizer -->
+            <div class="hero-visual glass-card">
+                <!-- Google Meet Panel -->
+                <div class="mock-meet">
+                    <div class="mock-meet-header">
+                        <div class="meet-indicator">
+                            <span class="meet-dot"></span>
+                            <span data-key="meet-live">LIVE MEETING</span>
+                        </div>
+                        <span id="meet-timer">00:00</span>
+                    </div>
+                    <div class="mock-meet-grid">
+                        <div class="meet-user" id="user-1">
+                            <div class="meet-avatar" style="background-color: #2563eb; color: #fff;">A</div>
+                            <span class="meet-user-name">Alex Smith</span>
+                            <i class="fa-solid fa-microphone meet-mic"></i>
+                        </div>
+                        <div class="meet-user" id="user-2">
+                            <div class="meet-avatar" style="background-color: #7c3aed; color: #fff;">S</div>
+                            <span class="meet-user-name">Sarah Connor</span>
+                            <i class="fa-solid fa-microphone meet-mic"></i>
+                        </div>
+                        <div class="meet-user" id="user-3">
+                            <div class="meet-avatar" style="background-color: #059669; color: #fff;">M</div>
+                            <span class="meet-user-name">Mehdi Rezai</span>
+                            <i class="fa-solid fa-microphone meet-mic"></i>
+                        </div>
+                        <div class="meet-user" id="user-4">
+                            <div class="meet-avatar" style="background-color: #db2777; color: #fff;">L</div>
+                            <span class="meet-user-name">Leila Karimi</span>
+                            <i class="fa-solid fa-microphone meet-mic"></i>
+                        </div>
+                    </div>
+                    <!-- Caption Box Overlay -->
+                    <div class="meet-captions-overlay">
+                        <div class="caption-speaker" id="active-speaker">Alex Smith</div>
+                        <div class="caption-text" id="active-caption">Welcome everyone, let's start the weekly sync.</div>
+                    </div>
+                </div>
+                <!-- MirzaBenevis Extension Sidebar -->
+                <div class="mock-extension">
+                    <div class="ext-header">
+                        <div class="ext-title">
+                            <img src="images/128-AutoMeetingLog.png" alt="MB logo">
+                            <span>MirzaBenevis</span>
+                        </div>
+                        <span class="ext-badge">ACTIVE</span>
+                    </div>
+                    <div class="ext-body">
+                        <div class="ext-log-title" data-key="ext-log-title">Logged Captions</div>
+                        <div class="ext-log-list" id="logged-list">
+                            <!-- Dynamic transcripts injected here -->
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
 
     <!-- Features Section -->
-    <section id="features" class="py-5">
+    <section id="features">
         <div class="container">
-            <h2 class="text-center mb-5">Features</h2>
-            <div class="row g-4">
-                <div class="col-md-4">
-                    <div class="card feature-card h-100 p-4">
-                        <div class="card-body text-center">
-                            <i class="fas fa-caption feature-icon"></i>
-                            <h5 class="card-title">Auto Captions</h5>
-                            <p class="card-text">Automatically enables and captures Google Meet captions in real-time</p>
-                        </div>
+            <div class="section-header">
+                <span class="section-subtitle" data-key="features-sub">Capabilities</span>
+                <h2 class="section-title" data-key="features-title">Designed for Seamless Recording</h2>
+            </div>
+
+            <div class="features-grid">
+                <!-- Feature 1 -->
+                <div class="glass-card feature-card">
+                    <div class="feature-icon-box">
+                        <i class="fa-solid fa-closed-captioning"></i>
                     </div>
+                    <h3 class="feature-title" data-key="f1-title">Auto Captions Activation</h3>
+                    <p class="feature-desc" data-key="f1-desc">Automatically turns on Google Meet captions as soon as you join, ensuring no part of the conversation is ever missed.</p>
                 </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100 p-4">
-                        <div class="card-body text-center">
-                            <i class="fas fa-users feature-icon"></i>
-                            <h5 class="card-title">Smart Tracking</h5>
-                            <p class="card-text">Tracks participants and their messages with precise timestamps</p>
-                        </div>
+                <!-- Feature 2 -->
+                <div class="glass-card feature-card">
+                    <div class="feature-icon-box">
+                        <i class="fa-solid fa-users-viewfinder"></i>
                     </div>
+                    <h3 class="feature-title" data-key="f2-title">Smart Speaker Tracking</h3>
+                    <p class="feature-desc" data-key="f2-desc">Organizes transcripts neatly by mapping exactly who spoke what, matching avatars, names, and precise seconds.</p>
                 </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100 p-4">
-                        <div class="card-body text-center">
-                            <i class="fas fa-copy feature-icon"></i>
-                            <h5 class="card-title">Easy Export</h5>
-                            <p class="card-text">Export conversations to text files or copy to clipboard instantly</p>
-                        </div>
+                <!-- Feature 3 -->
+                <div class="glass-card feature-card">
+                    <div class="feature-icon-box">
+                        <i class="fa-solid fa-file-export"></i>
                     </div>
+                    <h3 class="feature-title" data-key="f3-title">Instant Export & Copy</h3>
+                    <p class="feature-desc" data-key="f3-desc">Download formatted transcript logs to plain text files (.txt) or copy them to your clipboard with a single click.</p>
                 </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100 p-4">
-                        <div class="card-body text-center">
-                            <i class="fas fa-history feature-icon"></i>
-                            <h5 class="card-title">Meeting History</h5>
-                            <p class="card-text">Access your past meeting logs through the extension popup</p>
-                        </div>
+                <!-- Feature 4 -->
+                <div class="glass-card feature-card">
+                    <div class="feature-icon-box">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
                     </div>
+                    <h3 class="feature-title" data-key="f4-title">Session History Archive</h3>
+                    <p class="feature-desc" data-key="f4-desc">Access, rename, review, or copy the archives of all your past captured Google Meet sessions from the extension popup interface.</p>
                 </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100 p-4">
-                        <div class="card-body text-center">
-                            <i class="fas fa-shield-alt feature-icon"></i>
-                            <h5 class="card-title">Privacy Focused</h5>
-                            <p class="card-text">All data is stored locally on your device for maximum privacy</p>
-                        </div>
+                <!-- Feature 5 -->
+                <div class="glass-card feature-card">
+                    <div class="feature-icon-box">
+                        <i class="fa-solid fa-shield-halved"></i>
                     </div>
+                    <h3 class="feature-title" data-key="f5-title">100% Privacy Focused</h3>
+                    <p class="feature-desc" data-key="f5-desc">All conversations are captured and saved locally on your device. Absolutely no data is sent to external servers or cloud repositories.</p>
                 </div>
-                <div class="col-md-4">
-                    <div class="card feature-card h-100 p-4">
-                        <div class="card-body text-center">
-                            <i class="fas fa-bolt feature-icon"></i>
-                            <h5 class="card-title">Lightweight</h5>
-                            <p class="card-text">Minimal resource usage with no impact on meeting performance</p>
-                        </div>
+                <!-- Feature 6 -->
+                <div class="glass-card feature-card">
+                    <div class="feature-icon-box">
+                        <i class="fa-solid fa-feather"></i>
                     </div>
+                    <h3 class="feature-title" data-key="f6-title">Lightweight Footprint</h3>
+                    <p class="feature-desc" data-key="f6-desc">Extremely lightweight build with zero overhead. It runs silently in the background without affecting browser or call performance.</p>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- Installation Section -->
-    <section id="installation" class="py-5 bg-light">
-        <div class="container">
-            <h2 class="text-center mb-5">Installation</h2>
-            <div class="row justify-content-center">
-                <div class="col-md-8">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">Chrome Web Store Installation</h5>
-                            <ol class="mb-4">
-                                <li>Visit the Chrome Web Store</li>
-                                <li>Click "Add to Chrome"</li>
-                                <li>Confirm the installation</li>
-                                <li>Start using MirzaBenevis in your Google Meet sessions!</li>
-                            </ol>
-                            <h5 class="card-title">Manual Installation</h5>
-                            <ol>
-                                <li>Download the ZIP file from GitHub</li>
-                                <li>Extract the contents to a folder</li>
-                                <li>Open Chrome and go to chrome://extensions/</li>
-                                <li>Enable "Developer mode" in the top right</li>
-                                <li>Click "Load unpacked" and select the extracted folder</li>
-                            </ol>
+    <section id="installation" style="background: rgba(255,255,255,0.01); border-top: 1px solid var(--card-border); border-bottom: 1px solid var(--card-border);">
+        <div class="container installation-container">
+            <div class="section-header">
+                <span class="section-subtitle" data-key="install-sub">Setup Guide</span>
+                <h2 class="section-title" data-key="install-title">Get MirzaBenevis in Minutes</h2>
+            </div>
+
+            <!-- Install Tabs -->
+            <div class="install-tabs">
+                <button class="install-tab-btn active" id="tab-btn-store">
+                    <i class="fa-brands fa-chrome"></i>
+                    <span data-key="tab-store-title">Chrome Web Store</span>
+                </button>
+                <button class="install-tab-btn" id="tab-btn-manual">
+                    <i class="fa-solid fa-code"></i>
+                    <span data-key="tab-manual-title">Manual Installation</span>
+                </button>
+            </div>
+
+            <!-- Chrome Web Store Tab Content -->
+            <div class="install-tab-content active" id="content-store">
+                <ul class="step-list">
+                    <li class="step-item">
+                        <div class="step-number">1</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="store-step1-t">Visit Web Store</h4>
+                            <p class="step-text-desc" data-key="store-step1-d">Go to the Chrome Web Store and search for "MirzaBenevis" (Store Link coming soon).</p>
                         </div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">2</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="store-step2-t">Add to Chrome</h4>
+                            <p class="step-text-desc" data-key="store-step2-d">Click on the "Add to Chrome" button on the extension page.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">3</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="store-step3-t">Confirm Permissions</h4>
+                            <p class="step-text-desc" data-key="store-step3-d">Approve the dialog box permissions. The browser will download and install the extension automatically.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">4</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="store-step4-t">Ready to Record</h4>
+                            <p class="step-text-desc" data-key="store-step4-d">Join any Google Meet. MirzaBenevis will auto-start capturing logs when captions are displayed.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Manual Installation Tab Content -->
+            <div class="install-tab-content" id="content-manual">
+                <ul class="step-list">
+                    <li class="step-item">
+                        <div class="step-number">1</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="man-step1-t">Download source ZIP</h4>
+                            <p class="step-text-desc" data-key="man-step1-d">Click the download button on this page or clone the codebase directly from our GitHub repository.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">2</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="man-step2-t">Extract ZIP</h4>
+                            <p class="step-text-desc" data-key="man-step2-d">Extract the downloaded file contents onto a folder on your computer.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">3</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="man-step3-t">Open Extension Dashboard</h4>
+                            <p class="step-text-desc" data-key="man-step3-d">Open a tab in Google Chrome and type <code>chrome://extensions/</code> in the URL address bar.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">4</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="man-step4-t">Enable Developer Mode</h4>
+                            <p class="step-text-desc" data-key="man-step4-d">Toggle the "Developer Mode" switch in the top-right corner to enabled.</p>
+                        </div>
+                    </li>
+                    <li class="step-item">
+                        <div class="step-number">5</div>
+                        <div>
+                            <h4 class="step-text-title" data-key="man-step5-t">Load Unpacked</h4>
+                            <p class="step-text-desc" data-key="man-step5-d">Click the "Load Unpacked" button in the top-left, and select the folder directory where you extracted the extension.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap Timeline Section -->
+    <section id="roadmap">
+        <div class="container">
+            <div class="section-header">
+                <span class="section-subtitle" data-key="roadmap-sub">Timeline</span>
+                <h2 class="section-title" data-key="roadmap-title">Product Roadmap</h2>
+            </div>
+
+            <div class="roadmap-container">
+                <div class="roadmap-line"></div>
+                
+                <!-- Node 1 -->
+                <div class="roadmap-node node-completed">
+                    <div class="roadmap-dot"></div>
+                    <div class="glass-card roadmap-card">
+                        <div class="roadmap-meta">
+                            <span class="roadmap-ver" data-key="r1-ver">v1.1.2 - Stable release</span>
+                            <span class="roadmap-status status-released" data-key="r-status-released">RELEASED</span>
+                        </div>
+                        <ul class="roadmap-list">
+                            <li class="roadmap-item" data-key="r1-item1">Auto-enable Google Meet caption settings</li>
+                            <li class="roadmap-item" data-key="r1-item2">Timestamps and speaker matching functionality</li>
+                            <li class="roadmap-item" data-key="r1-item3">Export records to clipboard and raw text formats</li>
+                            <li class="roadmap-item" data-key="r1-item4">Bilingual extension interface support</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Node 2 -->
+                <div class="roadmap-node">
+                    <div class="roadmap-dot"></div>
+                    <div class="glass-card roadmap-card">
+                        <div class="roadmap-meta">
+                            <span class="roadmap-ver" data-key="r2-ver">v1.2.0 - Next update</span>
+                            <span class="roadmap-status status-progress" data-key="r-status-progress">UNDER DEVELOPMENT</span>
+                        </div>
+                        <ul class="roadmap-list">
+                            <li class="roadmap-item" data-key="r2-item1">Add single session log deletion and renaming</li>
+                            <li class="roadmap-item" data-key="r2-item2">Integrate Vazirmatn Persian typography throughout the UI</li>
+                            <li class="roadmap-item" data-key="r2-item3">Support meeting caption search in the popup</li>
+                            <li class="roadmap-item" data-key="r2-item4">Integrate AI summarize options using local/remote models</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Node 3 -->
+                <div class="roadmap-node node-future">
+                    <div class="roadmap-dot"></div>
+                    <div class="glass-card roadmap-card">
+                        <div class="roadmap-meta">
+                            <span class="roadmap-ver" data-key="r3-ver">v2.0.0 - Long-term goal</span>
+                            <span class="roadmap-status status-planned" data-key="r-status-planned">PLANNED</span>
+                        </div>
+                        <ul class="roadmap-list">
+                            <li class="roadmap-item" data-key="r3-item1">Synchronize session archives to cloud storages (Drive, Dropbox)</li>
+                            <li class="roadmap-item" data-key="r3-item2">Full web dashboard application for review and editing</li>
+                            <li class="roadmap-item" data-key="r3-item3">Voice-to-text integration for non-captioned segments</li>
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Roadmap Section -->
-    <section id="roadmap" class="py-5">
+    <!-- Support / Donate Section -->
+    <section class="donate-section">
         <div class="container">
-            <h2 class="text-center mb-5">Roadmap</h2>
-            <div class="row justify-content-center">
-                <div class="col-md-10">
-                    <div class="timeline">
-                        <div class="timeline-item">
-                            <div class="timeline-badge">
-                                <i class="fas fa-check-circle"></i>
-                            </div>
-                            <div class="timeline-content">
-                                <h4>Version 1.1.2 - Current</h4>
-                                <ul>
-                                    <li>Added copy to clipboard feature</li>
-                                    <li>Added export to text file functionality</li>
-                                    <li>Improved UI with new logo and design</li>
-                                    <li>Added GitHub Pages website</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="timeline-item">
-                            <div class="timeline-badge">
-                                <i class="fas fa-clock"></i>
-                            </div>
-                            <div class="timeline-content">
-                                <h4>Version 1.2.0 - Coming Soon</h4>
-                                <ul>
-                                    <li>Add remove button for meeting logs</li>
-                                    <li>Add rename button for meeting logs</li>
-                                    <li>Vazir font</li>
-                                    <li>Add AI-powered meeting summaries</li>
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="timeline-item">
-                            <div class="timeline-badge">
-                                <i class="fas fa-rocket"></i>
-                            </div>
-                            <div class="timeline-content">
-                                <h4>Version 2.0.0 - Future Plans</h4>
-                                <ul>
-                                    <li>Implement cloud sync for meeting logs</li>
-                                    <li>Create a web dashboard for managing meeting logs</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
+            <div class="glass-card donate-card">
+                <h2 class="donate-title" data-key="donate-title">Support MirzaBenevis</h2>
+                <p class="donate-desc" data-key="donate-desc">
+                    MirzaBenevis is open-source and free to use. Your donations help fund continuous updates, cloud integration, and support development costs!
+                </p>
+                <div class="donate-actions">
+                    <a href="https://zarinp.al/710727" target="_blank" class="btn btn-primary btn-success" style="font-size: 1.1rem; padding: 14px 36px;" data-key="donate-btn-label">
+                        <i class="fa-solid fa-heart"></i> Donate via ZarinPal
+                    </a>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- Footer -->
-    <footer class="bg-dark text-light py-4">
-        <div class="container text-center">
-            <p class="mb-0">© 2024 MirzaBenevis. All rights reserved.</p>
+    <footer>
+        <div class="container footer-grid">
+            <a href="#" class="footer-logo">
+                <img src="images/128-AutoMeetingLog.png" alt="MirzaBenevis Logo">
+                <span>MirzaBenevis</span>
+            </a>
+            
+            <div class="footer-copyright" data-key="footer-copy">
+                &copy; 2026 MirzaBenevis. All rights reserved. Made with love in Iran.
+            </div>
+
+            <div class="footer-links">
+                <a href="https://github.com/amirHHP/mirzabenevis2" target="_blank" title="GitHub"><i class="fa-brands fa-github"></i></a>
+                <a href="https://zarinp.al/710727" target="_blank" title="Donate"><i class="fa-solid fa-heart"></i></a>
+            </div>
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Translations & Simulated Interaction JS script -->
+    <script>
+        // --- TRANSLATION DATABASE ---
+        const translations = {
+            en: {
+                "nav-features": "Features",
+                "nav-installation": "Installation",
+                "nav-roadmap": "Roadmap",
+                "nav-donate": "Donate",
+                "hero-badge": "Smart Google Meet Assistant",
+                "hero-title": "Capture Your Meetings <span class='text-gradient'>With Style</span>",
+                "hero-desc": "Automatically capture and format Google Meet conversations, track participants, and export rich transcripts securely.",
+                "hero-btn-start": "Get Started",
+                "hero-btn-donate": "Donate",
+                "meet-live": "LIVE MEETING",
+                "ext-log-title": "Logged Captions",
+                "features-sub": "Capabilities",
+                "features-title": "Designed for Seamless Recording",
+                "f1-title": "Auto Captions Activation",
+                "f1-desc": "Automatically turns on Google Meet captions as soon as you join, ensuring no part of the conversation is ever missed.",
+                "f2-title": "Smart Speaker Tracking",
+                "f2-desc": "Organizes transcripts neatly by mapping exactly who spoke what, matching avatars, names, and precise seconds.",
+                "f3-title": "Instant Export & Copy",
+                "f3-desc": "Download formatted transcript logs to plain text files (.txt) or copy them to your clipboard with a single click.",
+                "f4-title": "Session History Archive",
+                "f4-desc": "Access, rename, review, or copy the archives of all your past captured Google Meet sessions from the extension popup interface.",
+                "f5-title": "100% Privacy Focused",
+                "f5-desc": "All conversations are captured and saved locally on your device. Absolutely no data is sent to external servers or cloud repositories.",
+                "f6-title": "Lightweight Footprint",
+                "f6-desc": "Extremely lightweight build with zero overhead. It runs silently in the background without affecting browser or call performance.",
+                "install-sub": "Setup Guide",
+                "install-title": "Get MirzaBenevis in Minutes",
+                "tab-store-title": "Chrome Web Store",
+                "tab-manual-title": "Manual Installation",
+                "store-step1-t": "Visit Web Store",
+                "store-step1-d": "Go to the Chrome Web Store and search for 'MirzaBenevis' (Store Link coming soon).",
+                "store-step2-t": "Add to Chrome",
+                "store-step2-d": "Click on the 'Add to Chrome' button on the extension page.",
+                "store-step3-t": "Confirm Permissions",
+                "store-step3-d": "Approve the dialog box permissions. The browser will download and install the extension automatically.",
+                "store-step4-t": "Ready to Record",
+                "store-step4-d": "Join any Google Meet. MirzaBenevis will auto-start capturing logs when captions are displayed.",
+                "man-step1-t": "Download source ZIP",
+                "man-step1-d": "Click the download button on this page or clone the codebase directly from our GitHub repository.",
+                "man-step2-t": "Extract ZIP",
+                "man-step2-d": "Extract the downloaded file contents onto a folder on your computer.",
+                "man-step3-t": "Open Extension Dashboard",
+                "man-step3-d": "Open a tab in Google Chrome and type chrome://extensions/ in the URL address bar.",
+                "man-step4-t": "Enable Developer Mode",
+                "man-step4-d": "Toggle the 'Developer Mode' switch in the top-right corner to enabled.",
+                "man-step5-t": "Load Unpacked",
+                "man-step5-d": "Click the 'Load Unpacked' button in the top-left, and select the folder directory where you extracted the extension.",
+                "roadmap-sub": "Timeline",
+                "roadmap-title": "Product Roadmap",
+                "r1-ver": "v1.1.2 - Stable release",
+                "r-status-released": "RELEASED",
+                "r1-item1": "Auto-enable Google Meet caption settings",
+                "r1-item2": "Timestamps and speaker matching functionality",
+                "r1-item3": "Export records to clipboard and raw text formats",
+                "r1-item4": "Bilingual extension interface support",
+                "r2-ver": "v1.2.0 - Next update",
+                "r-status-progress": "UNDER DEVELOPMENT",
+                "r2-item1": "Add single session log deletion and renaming",
+                "r2-item2": "Integrate Vazirmatn Persian typography throughout the UI",
+                "r2-item3": "Support meeting caption search in the popup",
+                "r2-item4": "Integrate AI summarize options using local/remote models",
+                "r3-ver": "v2.0.0 - Long-term goal",
+                "r-status-planned": "PLANNED",
+                "r3-item1": "Synchronize session archives to cloud storages (Drive, Dropbox)",
+                "r3-item2": "Full web dashboard application for review and editing",
+                "r3-item3": "Voice-to-text integration for non-captioned segments",
+                "donate-title": "Support MirzaBenevis",
+                "donate-desc": "MirzaBenevis is open-source and free to use. Your donations help fund continuous updates, cloud integration, and support development costs!",
+                "donate-btn-label": "Donate via ZarinPal",
+                "footer-copy": "&copy; 2026 MirzaBenevis. All rights reserved. Made with love in Iran."
+            },
+            fa: {
+                "nav-features": "ویژگی‌ها",
+                "nav-installation": "راهنمای نصب",
+                "nav-roadmap": "نقشه راه",
+                "nav-donate": "حمایت مالی",
+                "hero-badge": "دستیار هوشمند گوگل میت",
+                "hero-title": "جلسات خود را <span class='text-gradient'>ساده و زیبا</span> ضبط کنید",
+                "hero-desc": "ثبت و قالب‌بندی خودکار گفتگوهای گوگل میت، دسته‌بندی بر اساس گویندگان و خروجی گرفتن کاملاً امن و محلی از آرشیو جلسات.",
+                "hero-btn-start": "شروع کار",
+                "hero-btn-donate": "حمایت مالی",
+                "meet-live": "جلسه زنده",
+                "ext-log-title": "گفتگوهای ضبط شده",
+                "features-sub": "قابلیت‌ها",
+                "features-title": "طراحی شده برای ضبط بدون دغدغه",
+                "f1-title": "فعال‌سازی خودکار زیرنویس",
+                "f1-desc": "بلافاصله پس از ورود به جلسه، قابلیت کپشن گوگل میت به صورت خودکار فعال شده تا هیچ بخشی از مکالمات از دست نرود.",
+                "f2-title": "تفکیک هوشمند گویندگان",
+                "f2-desc": "مکالمات را بر اساس نام، آواتار و ثانیه دقیق صحبت هر فرد دسته‌بندی و آرشیو می‌کند.",
+                "f3-title": "کپی و خروجی سریع",
+                "f3-desc": "کل متن جلسه یا بخش‌های خاص را با یک کلیک کپی کرده یا با فرمت متنی (TXT.) ذخیره کنید.",
+                "f4-title": "تاریخچه و آرشیو جلسات",
+                "f4-desc": "دسترسی کامل به جلسات قبلی، امکان تغییر نام، مرور یا کپی آرشیوها مستقیماً از پاپ‌آپ افزونه.",
+                "f5-title": "۱۰۰٪ متمرکز بر حریم خصوصی",
+                "f5-desc": "تمام اطلاعات مکالمات کاملاً به صورت محلی در مرورگر شما ذخیره شده و هیچ داده‌ای به سرورهای خارجی ارسال نمی‌شود.",
+                "f6-title": "سبک و بدون اثر جانبی",
+                "f6-desc": "حجم بسیار پایین افزونه و استفاده ناچیز از رم، هیچ تأثیری بر روی کیفیت تماس و سرعت مرورگر نمی‌گذارد.",
+                "install-sub": "راهنمای نصب",
+                "install-title": "نصب میرزابنویس در چند دقیقه",
+                "tab-store-title": "فروشگاه وب کروم",
+                "tab-manual-title": "نصب به صورت دستی",
+                "store-step1-t": "باز کردن فروشگاه کروم",
+                "store-step1-d": "به فروشگاه وب کروم (Chrome Web Store) مراجعه کرده و عبارت 'MirzaBenevis' را جستجو کنید (به‌زودی).",
+                "store-step2-t": "افزودن به کروم",
+                "store-step2-d": "روی دکمه 'Add to Chrome' در صفحه افزونه کلیک کنید.",
+                "store-step3-t": "تأیید دسترسی‌ها",
+                "store-step3-d": "در پنجره باز شده دسترسی‌ها را تأیید کنید تا افزونه به صورت خودکار دانلود و نصب شود.",
+                "store-step4-t": "آماده برای استفاده",
+                "store-step4-d": "وارد هر جلسه گوگل میت شوید؛ میرزابنویس به محض روشن شدن زیرنویس‌ها، فرآیند ضبط را آغاز می‌کند.",
+                "man-step1-t": "دانلود فایل ZIP افزونه",
+                "man-step1-d": "فایل ZIP برنامه را از بالای همین صفحه دانلود کنید یا پروژه را مستقیماً از گیت‌هاب ما کلون کنید.",
+                "man-step2-t": "استخراج فایل",
+                "man-step2-d": "فایل دانلود شده را از حالت فشرده در یک پوشه مشخص خارج کنید.",
+                "man-step3-t": "بخش مدیریت افزونه‌های کروم",
+                "man-step3-d": "یک تب جدید باز کرده و آدرس <code>chrome://extensions/</code> را وارد کنید.",
+                "man-step4-t": "فعال‌سازی Developer Mode",
+                "man-step4-d": "گزینه Developer Mode را در بالا سمت راست صفحه افزونه‌ها فعال کنید.",
+                "man-step5-t": "بارگذاری افزونه (Load Unpacked)",
+                "man-step5-d": "روی دکمه 'Load Unpacked' کلیک کرده و پوشه‌ای که فایل افزونه را در آن استخراج کرده بودید انتخاب کنید.",
+                "roadmap-sub": "مسیر توسعه",
+                "roadmap-title": "نقشه راه محصول",
+                "r1-ver": "نسخه ۱.۱.۲ - نسخه پایدار فعلی",
+                "r-status-released": "انتشار یافته",
+                "r1-item1": "فعال‌سازی خودکار تنظیمات کپشن گوگل میت",
+                "r1-item2": "ثبت برچسب زمانی دقیق صحبت هر کاربر",
+                "r1-item3": "خروجی به صورت فایل متنی و امکان کپی در کلیپ‌بورد",
+                "r1-item4": "پشتیبانی دوزبانه در رابط کاربری افزونه",
+                "r2-ver": "نسخه ۱.۲.۰ - به‌روزرسانی بعدی",
+                "r-status-progress": "در حال توسعه",
+                "r2-item1": "امکان حذف جلسات خاص یا تغییر نام آن‌ها",
+                "r2-item2": "بهبود استایل‌ها و پیاده‌سازی فونت وزیرمتن در کل بدنه کاربری",
+                "r2-item3": "امکان جستجو در متن مکالمات ضبط‌شده",
+                "r2-item4": "قابلیت خلاصه‌سازی جلسات به کمک هوش مصنوعی (محلی و آنلاین)",
+                "r3-ver": "نسخه ۲.۰.۰ - برنامه‌های بلندمدت",
+                "r-status-planned": "برنامه‌ریزی شده",
+                "r3-item1": "همگام‌سازی ابری اطلاعات با فضاهایی مثل گوگل درایو یا دراپ‌باکس",
+                "r3-item2": "طراحی پنل تحت وب جامع برای دسترسی به متن مکالمات در سیستم‌های دیگر",
+                "r3-item3": "تبدیل گفتار به نوشتار صوتی در بخش‌هایی که بدون زیرنویس هستند",
+                "donate-title": "حمایت از میرزابنویس",
+                "donate-desc": "میرزابنویس یک پروژه متن‌باز و کاملاً رایگان است. حمایت‌های مالی شما کمک می‌کند تا بتوانیم هزینه‌های سرور ابری، افزودن هوش مصنوعی و بروزرسانی‌های مداوم را تأمین کنیم.",
+                "donate-btn-label": "حمایت مالی از طریق زرین‌پال",
+                "footer-copy": "&copy; ۱۴۰۵ میرزابنویس. تمامی حقوق محفوظ است. ساخته شده با عشق در ایران."
+            }
+        };
+
+        let currentLang = "en";
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            const dir = lang === "fa" ? "rtl" : "ltr";
+            document.documentElement.setAttribute("lang", lang);
+            document.documentElement.setAttribute("dir", dir);
+            
+            // Update lang button text
+            document.getElementById("lang-text").textContent = lang === "fa" ? "EN" : "FA";
+
+            // Update all localizable elements
+            const elements = document.querySelectorAll("[data-key]");
+            elements.forEach(el => {
+                const key = el.getAttribute("data-key");
+                if (translations[lang][key]) {
+                    el.innerHTML = translations[lang][key];
+                }
+            });
+
+            // Re-render simulator dialogue logs to match lang
+            resetDialogue();
+        }
+
+        document.getElementById("lang-btn").addEventListener("click", () => {
+            const nextLang = currentLang === "en" ? "fa" : "en";
+            setLanguage(nextLang);
+        });
+
+
+        // --- INSTALLATION TABS LOGIC ---
+        const tabBtnStore = document.getElementById("tab-btn-store");
+        const tabBtnManual = document.getElementById("tab-btn-manual");
+        const contentStore = document.getElementById("content-store");
+        const contentManual = document.getElementById("content-manual");
+
+        tabBtnStore.addEventListener("click", () => {
+            tabBtnStore.classList.add("active");
+            tabBtnManual.classList.remove("active");
+            contentStore.classList.add("active");
+            contentManual.classList.remove("active");
+        });
+
+        tabBtnManual.addEventListener("click", () => {
+            tabBtnManual.classList.add("active");
+            tabBtnStore.classList.remove("active");
+            contentManual.classList.add("active");
+            contentStore.classList.remove("active");
+        });
+
+
+        // --- INTERACTIVE SIMULATOR DIALOGUE ---
+        const dialogues = {
+            en: [
+                { user: "Alex Smith", text: "Hey guys, thanks for joining today's sprint check-in.", userId: "1" },
+                { user: "Sarah Connor", text: "Hi Alex! I finished testing the audio capture pipeline.", userId: "2" },
+                { user: "Mehdi Rezai", text: "Awesome Sarah, did we verify local storage limits?", userId: "3" },
+                { user: "Sarah Connor", text: "Yes, it safely saves up to 10MB of transcripts locally.", userId: "2" },
+                { user: "Leila Karimi", text: "Great. I'm finalizing the new layout styles today.", userId: "4" },
+                { user: "Alex Smith", text: "Perfect. Let's package the build and publish it tomorrow.", userId: "1" }
+            ],
+            fa: [
+                { user: "علیرضا رضایی", text: "سلام دوستان، ممنون که در جلسه امروز شرکت کردید.", userId: "1" },
+                { user: "سارا احمدی", text: "سلام! کار تست بخش ضبط و تفکیک صدا تمام شد.", userId: "2" },
+                { user: "مهدی کریمی", text: "عالیه سارا، وضعیت ذخیره‌سازی محلی رو چک کردی؟", userId: "3" },
+                { user: "سارا احمدی", text: "بله، متن‌ها کاملاً ایمن و تا سقف ۱۰ مگابایت ذخیره میشن.", userId: "2" },
+                { user: "لیلا حسینی", text: "خیلی خوبه. منم امروز استایل‌های جدید سایت رو نهایی می‌کنم.", userId: "4" },
+                { user: "علیرضا رضایی", text: "فوق‌العاده‌ست. فردا نسخه جدید رو خروجی می‌گیریم.", userId: "1" }
+            ]
+        };
+
+        const speakerNames = {
+            en: ["Alex Smith", "Sarah Connor", "Mehdi Rezai", "Leila Karimi"],
+            fa: ["علیرضا رضایی", "سارا احمدی", "مهدی کریمی", "لیلا حسینی"]
+        };
+
+        let dialogueIndex = 0;
+        let elapsedSeconds = 0;
+        let timerInterval = null;
+        let dialogueTimeout = null;
+
+        function updateTimer() {
+            elapsedSeconds++;
+            const mins = Math.floor(elapsedSeconds / 60).toString().padStart(2, '0');
+            const secs = (elapsedSeconds % 60).toString().padStart(2, '0');
+            document.getElementById("meet-timer").textContent = `${mins}:${secs}`;
+        }
+
+        function resetDialogue() {
+            // Clear current timeouts/intervals
+            clearTimeout(dialogueTimeout);
+            clearInterval(timerInterval);
+            
+            elapsedSeconds = 0;
+            dialogueIndex = 0;
+            document.getElementById("meet-timer").textContent = "00:00";
+            document.getElementById("logged-list").innerHTML = "";
+            
+            // Start simulation loop
+            timerInterval = setInterval(updateTimer, 1000);
+            runNextDialogueStep();
+        }
+
+        function runNextDialogueStep() {
+            const list = dialogues[currentLang];
+            if (!list || !list[dialogueIndex]) return;
+            const currentStep = list[dialogueIndex];
+
+            // 1. Highlight speaker in Meet
+            document.querySelectorAll(".meet-user").forEach(el => el.classList.remove("speaking"));
+            const activeUserEl = document.getElementById(`user-${currentStep.userId}`);
+            if (activeUserEl) {
+                activeUserEl.classList.add("speaking");
+                // Update speaker name to current localized name
+                const localizedName = speakerNames[currentLang][parseInt(currentStep.userId) - 1];
+                activeUserEl.querySelector(".meet-user-name").textContent = localizedName;
+            }
+
+            // 2. Show active caption overlay in Meet
+            const activeSpeakerName = speakerNames[currentLang][parseInt(currentStep.userId) - 1];
+            document.getElementById("active-speaker").textContent = activeSpeakerName;
+            document.getElementById("active-caption").textContent = currentStep.text;
+
+            // 3. Add to extension log sidebar (after a slight delay simulating recording)
+            dialogueTimeout = setTimeout(() => {
+                const loggedList = document.getElementById("logged-list");
+                if (!loggedList) return;
+                
+                const logItem = document.createElement("div");
+                logItem.className = "ext-log-item";
+                
+                const timeString = new Date().toLocaleTimeString(currentLang === 'fa' ? 'fa-IR' : 'en-US', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+
+                logItem.innerHTML = `
+                    <div class="ext-log-meta">
+                        <span class="ext-log-user">${activeSpeakerName}</span>
+                        <span>${timeString}</span>
+                    </div>
+                    <div class="ext-log-text">${currentStep.text}</div>
+                `;
+                
+                loggedList.appendChild(logItem);
+                
+                // Auto scroll sidebar
+                const extBody = document.querySelector(".ext-body");
+                if (extBody) {
+                    extBody.scrollTop = extBody.scrollHeight;
+                }
+
+                // Loop or go to next
+                dialogueIndex = (dialogueIndex + 1) % list.length;
+                
+                // If looped, clear the log sidebar so it doesn't grow infinitely
+                if (dialogueIndex === 0) {
+                    setTimeout(() => {
+                        const loggedList = document.getElementById("logged-list");
+                        if (loggedList) loggedList.innerHTML = "";
+                    }, 4000);
+                }
+
+                // Schedule next dialogue card step
+                dialogueTimeout = setTimeout(runNextDialogueStep, 4500);
+
+            }, 800);
+        }
+
+        // Initialize simulation on load
+        window.addEventListener("DOMContentLoaded", () => {
+            setLanguage("en");
+        });
+    </script>
 </body>
-</html> 
+</html>
