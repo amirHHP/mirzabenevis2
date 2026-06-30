@@ -113,7 +113,7 @@ body {
     text-transform: uppercase;
 }
 
-.btn {
+.popup .btn {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -129,25 +129,25 @@ body {
     transition: background 0.2s ease, transform 0.15s ease;
 }
 
-.btn:active {
+.popup .btn:active {
     transform: scale(0.98);
 }
 
-.btn-primary {
+.popup .btn-primary {
     background: var(--primary);
     color: #fff;
 }
 
-.btn-primary:hover {
+.popup .btn-primary:hover {
     background: var(--primary-hover);
 }
 
-.btn-accent {
+.popup .btn-accent {
     background: var(--accent);
     color: #fff;
 }
 
-.btn-accent:hover {
+.popup .btn-accent:hover {
     background: var(--accent-hover);
 }
 
@@ -219,6 +219,6 @@ body {
     flex-direction: row-reverse;
 }
 
-[dir="rtl"] .btn {
+[dir="rtl"] .popup .btn {
     flex-direction: row-reverse;
 }
