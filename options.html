@@ -1,65 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Options</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            padding: 20px;
-            width: 200px;
-            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
-            background-color: #f4f4f4;
-        }
-
-        h3 {
-            color: #333;
-            border-bottom: 1px solid #e0e0e0;
-            padding-bottom: 10px;
-        }
-
-        button {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            background-color: #3a8dca;
-            color: white;
-            font-weight: bold;
-            border: none;
-            cursor: pointer;
-            border-radius: 3px;
-            margin-top: 20px;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #2c6ea6;
-        }
-
-    </style>
+    <title>MirzaBenevis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="options.css" rel="stylesheet">
 </head>
 
 <body>
-    <h3>Auto Meeting Log</h3>
-    <button id="show-meetings-btn">Meeting Logs</button>
+    <div class="popup">
+        <header class="popup-header">
+            <div class="brand">
+                <img class="brand-icon" src="images/128-mirzabenevis.png" alt="">
+                <span class="brand-title">MirzaBenevis</span>
+            </div>
+            <div class="lang-toggle" role="group" aria-label="Interface language">
+                <button type="button" class="lang-btn active" data-ui-lang="en">EN</button>
+                <button type="button" class="lang-btn" data-ui-lang="fa">FA</button>
+            </div>
+        </header>
 
-    <h3 style="margin-top: 24px;">Gemini Settings</h3>
-    <label for="gemini-api-key" style="display:block; margin-top:8px; font-size:13px;">Gemini API Key</label>
-    <input id="gemini-api-key" type="password" style="width:100%; padding:6px; margin-top:4px; box-sizing:border-box;">
-    <small style="display:block; margin-top:4px; font-size:11px; color:#666;">
-        Stored securely in Chrome sync storage. Required for meeting summaries.
-    </small>
+        <section class="card">
+            <h2 class="card-title" data-i18n="sectionMeetings">Auto Meeting Log</h2>
+            <button id="show-meetings-btn" class="btn btn-accent" type="button">
+                <span data-i18n="meetingLogs">Meeting Logs</span>
+            </button>
+        </section>
 
-    <label for="gemini-summary-language" style="display:block; margin-top:10px; font-size:13px;">Summary language</label>
-    <select id="gemini-summary-language" style="width:100%; padding:6px; margin-top:4px; box-sizing:border-box;">
-        <option value="en">English</option>
-        <option value="fa">Persian (Farsi)</option>
-    </select>
+        <section class="card">
+            <h2 class="card-title" data-i18n="sectionGemini">Gemini Settings</h2>
 
-    <button id="save-gemini-key-btn" style="margin-top:12px;">Save settings</button>
-    <div id="options-status" style="margin-top:8px; font-size:12px; color:green;"></div>
+            <div class="field">
+                <label class="field-label" for="gemini-api-key" data-i18n="apiKeyLabel">Gemini API Key</label>
+                <input id="gemini-api-key" class="field-input" type="password" autocomplete="off"
+                    data-i18n-placeholder="apiKeyPlaceholder">
+                <p class="field-hint" data-i18n="apiKeyHint">
+                    Stored securely in Chrome sync storage. Required for meeting summaries.
+                </p>
+            </div>
+
+            <div class="field">
+                <label class="field-label" for="gemini-summary-language" data-i18n="summaryLanguageLabel">Summary language</label>
+                <select id="gemini-summary-language" class="field-select">
+                    <option value="en" data-i18n="langEnglish">English</option>
+                    <option value="fa" data-i18n="langPersian">Persian (Farsi)</option>
+                </select>
+            </div>
+
+            <button id="save-gemini-key-btn" class="btn btn-primary" type="button">
+                <span data-i18n="saveSettings">Save settings</span>
+            </button>
+            <div id="options-status" class="status" aria-live="polite"></div>
+        </section>
+    </div>
 
     <script src="options.js"></script>
 </body>
