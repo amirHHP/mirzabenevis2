@@ -4,6 +4,42 @@ class Utils {
   }
 }
 
+class RuntimeHelper {
+  static isAvailable() {
+    try {
+      return Boolean(chrome?.runtime?.id);
+    } catch {
+      return false;
+    }
+  }
+
+  static isContextInvalidated(error) {
+    const message = String(error?.message || error || '');
+    return message.includes('Extension context invalidated');
+  }
+
+  static sendMessage(message) {
+    return new Promise((resolve, reject) => {
+      if (!this.isAvailable()) {
+        reject(new Error('Extension context invalidated.'));
+        return;
+      }
+
+      try {
+        chrome.runtime.sendMessage(message, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+}
+
 class MessageNodeInfo {
   constructor(node, actorIndex, type, timestamp = new Date().toISOString()) {
     this.node = node;
@@ -31,60 +67,55 @@ class Meeting {
   }
 
   async saveMessages(messages) {
-    try {
-      if (!chrome.runtime || !chrome.runtime.sendMessage) {
-        console.error("Chrome runtime not available");
-        return;
-      }
-
-      // background script가 응답할 때까지 최대 3번 시도
-      let retryCount = 0;
-      const maxRetries = 3;
-      
-      while (retryCount < maxRetries) {
-        try {
-          const response = await new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({
-              type: "background.saveMeeting",
-              meetingInfo: this.meetingInfo,
-              messages: messages,
-            }, (response) => {
-              if (chrome.runtime.lastError) {
-                reject(chrome.runtime.lastError);
-              } else {
-                resolve(response);
-              }
-            });
-          });
-
-          if (response && response.success) {
-            console.log("Successfully saved:", messages);
-            // UI 동기화 요청 (현재 미팅 정보 포함)
-            chrome.runtime.sendMessage({
-              type: "meetings.syncMeetingUI",
-              meetingStartTime: this.meetingInfo.meetingStartTime,
-              isCurrentMeeting: true
-            });
-            return true;
-          } else {
-            console.error("Save response was not successful. Raw response:", response);
-            throw new Error("Save response was not successful");
-          }
-        } catch (error) {
-          console.error(`Attempt ${retryCount + 1} failed:`, error);
-          retryCount++;
-          if (retryCount < maxRetries) {
-            await Utils.sleep(1000); // 1초 대기 후 재시도
-          }
-        }
-      }
-      
-      console.error("Failed to save messages after", maxRetries, "attempts");
-      return false;
-    } catch (error) {
-      console.error("Failed to save messages:", error);
+    if (!RuntimeHelper.isAvailable()) {
+      console.warn('Extension context unavailable. Reload Google Meet after updating the extension.');
       return false;
     }
+
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    while (retryCount < maxRetries) {
+      try {
+        const response = await RuntimeHelper.sendMessage({
+          type: 'background.saveMeeting',
+          meetingInfo: this.meetingInfo,
+          messages,
+        });
+
+        if (response && response.success) {
+          console.log('Successfully saved:', messages);
+          try {
+            await RuntimeHelper.sendMessage({
+              type: 'meetings.syncMeetingUI',
+              meetingStartTime: this.meetingInfo.meetingStartTime,
+              isCurrentMeeting: true,
+            });
+          } catch (syncError) {
+            if (!RuntimeHelper.isContextInvalidated(syncError)) {
+              console.warn('UI sync skipped:', syncError);
+            }
+          }
+          return true;
+        }
+
+        throw new Error('Save response was not successful');
+      } catch (error) {
+        if (RuntimeHelper.isContextInvalidated(error)) {
+          console.warn('Extension context invalidated. Reload Google Meet to continue logging.');
+          return false;
+        }
+
+        console.error(`Attempt ${retryCount + 1} failed:`, error);
+        retryCount += 1;
+        if (retryCount < maxRetries) {
+          await Utils.sleep(1000);
+        }
+      }
+    }
+
+    console.error('Failed to save messages after', maxRetries, 'attempts');
+    return false;
   }
 }
 
@@ -92,154 +123,336 @@ class CaptionsObserver {
   constructor(meeting) {
     this.meeting = meeting;
     this.observer = new MutationObserver(this.handleMutations);
-    this.nodeInfoMap = new WeakMap();
-    this.lastSpeakerNode = null;
+    this.savedMessageKeys = new Set();
+    this.savesInFlight = new Set();
+    this.currentUtterance = null;
+    this.liveBlock = null;
     this.isBackgroundActive = false;
     this.isSaving = false;
   }
 
-  handleMutations = (mutations) => {
-    mutations.forEach((mutation) => {
-      if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
-        this.handleAddedNodes(mutation.addedNodes);
-      } else if (mutation.type === "characterData") {
-        // 텍스트 노드 내용이 변경될 때도 처리
-        this.handleAddedNodes([mutation.target]);
-      }
-    });
+  getCaptionsRegion() {
+    return (
+      document.querySelector('[role="region"][aria-label="Captions"]') ||
+      document.querySelector('.vNKgIf.UDinHf') ||
+      document.querySelector('.iOzk7')
+    );
   }
 
-  handleAddedNodes(nodes) {
-    nodes.forEach(node => {
-      let messageNode = null;
-
-      // 텍스트 노드인 경우: 부모를 기준으로 캡션 컨테이너 찾기
-      if (node.nodeType === Node.TEXT_NODE) {
-        const parent = node.parentElement;
-        if (!parent) return;
-        // Google Meet 자막 컨테이너 (예: `class="ygicle VbkSUe"`) 대응
-        messageNode = parent.closest('.ygicle[class*="VbkSU"]') || parent.closest(".ygicle") || parent;
-      }
-      // 요소 노드가 추가된 경우: 내부에서 캡션 컨테이너(`.ygicle.VbkSU`) 찾기
-      else if (node.nodeType === Node.ELEMENT_NODE) {
-        const element = /** @type {HTMLElement} */ (node);
-        messageNode =
-          element.matches('.ygicle[class*="VbkSU"]') || element.matches(".ygicle")
-            ? element
-            : element.querySelector('.ygicle[class*="VbkSU"]') || element.querySelector(".ygicle");
-      }
-
-      if (!messageNode) return;
-
-      if (!this.nodeInfoMap.has(messageNode)) {
-        console.log("Detected potential caption node:", messageNode.textContent?.trim());
-        const speakerNode = messageNode.closest(".nMcdL.bj4p3b");
-
-        if (speakerNode) {
-          const name = speakerNode.querySelector(".KcIKyf.jxFHg")?.textContent.trim();
-          const imageUrl = speakerNode.querySelector("img.Z6byG.r6DyN")?.src;
-
-          let actorIndex = this.meeting.meetingInfo.participants.findIndex(p => p.imageUrl === imageUrl);
-          if (actorIndex === -1) {
-            this.meeting.meetingInfo.participants.push({ name, imageUrl });
-            actorIndex = this.meeting.meetingInfo.participants.length - 1;
-          }
-
-          // 현재 화자 노드 저장 (화자 이름 노드는 저장하지 않음)
-          if (!messageNode.closest(".KcIKyf.jxFHg")) {
-            // 화자가 변경되었는지 확인
-            const isNewSpeaker = this.lastSpeakerNode !== speakerNode;
-            
-            if (isNewSpeaker) {
-              // 이전 화자의 메시지들 저장
-              const existingNodeInfos = Array.from(this.meeting.messageNodeInfos.values())
-                .filter(info => {
-                  const isNameNode = info.node.closest(".KcIKyf.jxFHg") !== null;
-                  return !isNameNode && info.node.textContent.trim() !== "";
-                });
-
-              if (existingNodeInfos.length > 0) {
-                this.saveMessageInfos(existingNodeInfos).catch(error => {
-                  console.error("Failed to save messages:", error);
-                });
-                // 노드 정보는 저장 시도 후 바로 삭제
-                existingNodeInfos.forEach(info => {
-                  this.meeting.removeMessageNodeInfo(info.node);
-                  this.nodeInfoMap.delete(info.node);
-                });
-              }
-            }
-
-            // 현재 메시지 노드 정보 저장
-            this.lastSpeakerNode = speakerNode;
-            this.nodeInfoMap.set(messageNode, actorIndex);
-            this.meeting.addMessageNodeInfo(messageNode, actorIndex, "caption");
-          }
-        }
-      }
-    });
+  isCaptionBlock(element) {
+    return Boolean(element?.matches?.('.nMcdL.bj4p3b') || element?.matches?.('.nMcdL'));
   }
 
-  async saveMessageInfos(nodeInfos) {
-    if (!nodeInfos || nodeInfos.length === 0) {
-      console.log("No messages to save");
+  findCaptionBlock(node) {
+    let element = node;
+    if (element?.nodeType === Node.TEXT_NODE) {
+      element = element.parentElement;
+    }
+    if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+      return null;
+    }
+    if (this.isCaptionBlock(element)) {
+      return element;
+    }
+    return element.closest('.nMcdL.bj4p3b') || element.closest('.nMcdL');
+  }
+
+  getCaptionTextNode(blockNode) {
+    return blockNode.querySelector('.ygicle.VbkSUe, .ygicle[class*="VbkSU"], .ygicle');
+  }
+
+  isCaptionTextElement(element) {
+    if (!element || element.nodeType !== Node.ELEMENT_NODE) {
+      return false;
+    }
+    return (
+      element.matches('.ygicle.VbkSUe') ||
+      element.matches('.ygicle[class*="VbkSU"]') ||
+      (element.matches('.ygicle') && !!element.closest('.nMcdL.bj4p3b, .nMcdL'))
+    );
+  }
+
+  findCaptionTextNode(node) {
+    const block = this.findCaptionBlock(node);
+    if (!block) {
+      return null;
+    }
+    return this.getCaptionTextNode(block);
+  }
+
+  resolveActorIndex(speakerNode) {
+    const name =
+      speakerNode.querySelector('.KcIKyf.jxFHg .NWpY1d')?.textContent.trim() ||
+      speakerNode.querySelector('.KcIKyf.jxFHg')?.textContent.trim() ||
+      speakerNode.querySelector('.NWpY1d')?.textContent.trim() ||
+      'Unknown';
+    const imageUrl = speakerNode.querySelector('img.Z6byG.r6DyN')?.src || '';
+
+    let actorIndex = this.meeting.meetingInfo.participants.findIndex(
+      (p) => (imageUrl && p.imageUrl === imageUrl) || p.name === name
+    );
+    if (actorIndex === -1) {
+      this.meeting.meetingInfo.participants.push({ name, imageUrl });
+      actorIndex = this.meeting.meetingInfo.participants.length - 1;
+    }
+    return actorIndex;
+  }
+
+  normalizeText(text) {
+    return (text || '').replace(/\s+/g, ' ').trim();
+  }
+
+  getBlockText(blockNode) {
+    const captionNode = this.getCaptionTextNode(blockNode);
+    return this.normalizeText(captionNode?.textContent || '');
+  }
+
+  getSpeakerKey(blockNode) {
+    const name =
+      blockNode.querySelector('.KcIKyf.jxFHg .NWpY1d')?.textContent.trim() ||
+      blockNode.querySelector('.KcIKyf.jxFHg')?.textContent.trim() ||
+      blockNode.querySelector('.NWpY1d')?.textContent.trim() ||
+      'Unknown';
+    const imageUrl = blockNode.querySelector('img.Z6byG.r6DyN')?.src || '';
+    return `${name}::${imageUrl}`;
+  }
+
+  makeSaveKey(actorIndex, text) {
+    return `${actorIndex}::${text}`;
+  }
+
+  wasAlreadySaved(actorIndex, text) {
+    return this.savedMessageKeys.has(this.makeSaveKey(actorIndex, text));
+  }
+
+  markAsSaved(actorIndex, text) {
+    this.savedMessageKeys.add(this.makeSaveKey(actorIndex, text));
+  }
+
+  startUtterance(blockNode, text) {
+    this.currentUtterance = {
+      blockNode,
+      actorIndex: this.resolveActorIndex(blockNode),
+      speakerKey: this.getSpeakerKey(blockNode),
+      peakText: text,
+    };
+    this.liveBlock = blockNode;
+  }
+
+  async saveUtterance(utterance) {
+    if (!utterance) {
+      return false;
+    }
+
+    const text = this.normalizeText(utterance.peakText);
+    if (!text) {
+      return false;
+    }
+
+    const { actorIndex } = utterance;
+    const saveKey = this.makeSaveKey(actorIndex, text);
+
+    if (this.savedMessageKeys.has(saveKey) || this.savesInFlight.has(saveKey)) {
+      return false;
+    }
+
+    this.savesInFlight.add(saveKey);
+    try {
+      const success = await this.meeting.saveMessages([
+        {
+          actorIndex,
+          text,
+          timestamp: new Date().toISOString(),
+          type: 'caption',
+        },
+      ]);
+
+      if (success) {
+        this.markAsSaved(actorIndex, text);
+        console.log('Saved caption:', text);
+        return true;
+      }
+    } finally {
+      this.savesInFlight.delete(saveKey);
+    }
+
+    return false;
+  }
+
+  async closeCurrentUtterance() {
+    if (!this.currentUtterance) {
       return;
     }
 
-    const messages = nodeInfos.map((info) => ({
-      actorIndex: info.actorIndex,
-      text: info.node.textContent.trim(),
-      timestamp: info.timestamp,
-      type: info.type,
-    }));
+    const utterance = this.currentUtterance;
+    this.currentUtterance = null;
+    await this.saveUtterance(utterance);
+  }
 
-    try {
-      const success = await this.meeting.saveMessages(messages);
-      if (success) {
-        console.log("Messages saved successfully");
-        // 저장 성공 후에 노드 정보 삭제
-        nodeInfos.forEach(info => {
-          this.meeting.removeMessageNodeInfo(info.node);
-          this.nodeInfoMap.delete(info.node);
-        });
-      } else {
-        throw new Error("Failed to save messages");
-      }
-    } catch (error) {
-      console.error("Failed to save messages:", error);
-      throw error; // 에러를 상위로 전파
+  async processCaptionBlock(blockNode) {
+    const captionNode = this.getCaptionTextNode(blockNode);
+    if (!captionNode || captionNode.closest('.KcIKyf.jxFHg')) {
+      return;
+    }
+
+    const text = this.getBlockText(blockNode);
+    if (!text) {
+      return;
+    }
+
+    if (!this.currentUtterance) {
+      this.startUtterance(blockNode, text);
+      return;
+    }
+
+    const sameBlock = this.currentUtterance.blockNode === blockNode;
+    const speakerKey = this.getSpeakerKey(blockNode);
+    const sameSpeaker = this.currentUtterance.speakerKey === speakerKey;
+
+    if (!sameBlock || !sameSpeaker) {
+      await this.closeCurrentUtterance();
+      this.startUtterance(blockNode, text);
+      return;
+    }
+
+    if (text.length > this.currentUtterance.peakText.length) {
+      this.currentUtterance.peakText = text;
     }
   }
 
+  collectNodesToProcess(mutation) {
+    const nodes = new Set();
+    if (mutation.type === 'childList') {
+      mutation.addedNodes.forEach((node) => nodes.add(node));
+      mutation.removedNodes.forEach((node) => nodes.add(node));
+      if (mutation.target) {
+        nodes.add(mutation.target);
+      }
+    } else if (mutation.type === 'characterData') {
+      nodes.add(mutation.target);
+    }
+    return nodes;
+  }
+
+  handleMutations = (mutations) => {
+    const blocksToProcess = new Set();
+
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList') {
+        mutation.removedNodes.forEach((node) => {
+          const block = this.findCaptionBlock(node);
+          if (block && this.currentUtterance?.blockNode === block) {
+            void this.closeCurrentUtterance();
+          }
+        });
+      }
+
+      this.collectNodesToProcess(mutation).forEach((node) => {
+        const block = this.findCaptionBlock(node);
+        if (block) {
+          blocksToProcess.add(block);
+        }
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          node.querySelectorAll?.('.nMcdL.bj4p3b, .nMcdL').forEach((childBlock) => {
+            blocksToProcess.add(childBlock);
+          });
+        }
+      });
+    });
+
+    blocksToProcess.forEach((block) => {
+      void this.processCaptionBlock(block);
+    });
+  };
+
+  scanExistingCaptions() {
+    const region = this.getCaptionsRegion();
+    if (!region) {
+      return;
+    }
+
+    const blocks = region.querySelectorAll('.nMcdL.bj4p3b, .nMcdL');
+    if (blocks.length === 0) {
+      return;
+    }
+
+    const lastBlock = blocks[blocks.length - 1];
+    const text = this.getBlockText(lastBlock);
+    if (text) {
+      this.startUtterance(lastBlock, text);
+    }
+  }
+
+  async flushPendingSaves() {
+    await this.closeCurrentUtterance();
+  }
+
   async waitForCaptions() {
-    let captionsContainer;
-    while (!captionsContainer) {
-      // 자막 컨테이너 또는 자막 텍스트 노드가 나타날 때까지 대기
-      captionsContainer = document.querySelector(".iOzk7") || document.querySelector('.ygicle[class*="VbkSU"]') || document.querySelector(".ygicle");
+    const regionSelectors = [
+      '[role="region"][aria-label="Captions"]',
+      '.vNKgIf.UDinHf',
+      '.iOzk7',
+      '.ygicle.VbkSUe',
+      '.ygicle[class*="VbkSU"]',
+    ];
+    const inCallSelectors = [
+      'button[aria-label*="Leave call"]',
+      'button[aria-label*="Leave meeting"]',
+      'button[aria-label*="خروج"]',
+      'button[jsname="r8qRAd"]',
+    ];
+
+    const maxWaitMs = 120000;
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < maxWaitMs) {
+      for (const selector of regionSelectors) {
+        const captionsContainer = document.querySelector(selector);
+        if (captionsContainer) {
+          console.log('Captions region detected:', selector);
+          return captionsContainer;
+        }
+      }
+
+      const inCall = inCallSelectors.some((selector) => document.querySelector(selector));
+      if (inCall && Date.now() - startedAt > 5000) {
+        console.log('Meeting detected. Waiting for captions while observing the page.');
+        return document.body;
+      }
+
       await Utils.sleep(300);
     }
-    console.log("Captions container detected");
-    return captionsContainer;
+
+    console.warn('Captions region not found in time. Observing the page anyway.');
+    return document.body;
   }
 
   async run() {
     await this.waitForCaptions();
-    // 페이지 전체를 감시하여 어떤 위치에서든 자막이 생성되면 감지
+    this.scanExistingCaptions();
     this.observer.observe(document.body, {
       childList: true,
       subtree: true,
       characterData: true,
-      characterDataOldValue: true
+      characterDataOldValue: true,
     });
-    console.log("Captions observer started");
+    console.log('Captions observer started');
     this.addListeners();
   }
 
   addListeners() {
-    window.addEventListener("beforeunload", this.handleUnload);
-    window.addEventListener("unload", this.handleUnload);
-    
-    // Google Meet 세션 종료 감지
+    window.addEventListener('beforeunload', this.handleUnload);
+    window.addEventListener('unload', this.handleUnload);
+    window.addEventListener('pagehide', this.handleUnload);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && this.currentUtterance) {
+        const block = this.currentUtterance.blockNode;
+        const text = this.getBlockText(block);
+        if (text.length > this.currentUtterance.peakText.length) {
+          this.currentUtterance.peakText = text;
+        }
+      }
+    });
     this.observeLeaveButton();
 
     // background script의 활성화 메시지 수신
@@ -305,58 +518,27 @@ class CaptionsObserver {
     });
   }
 
-  handleUnload = async (event) => {
-    console.log("Saving messages...");
-    
-    // 남은 모든 메시지 저장
-    const remainingNodeInfos = Array.from(this.meeting.messageNodeInfos.values());
-    if (remainingNodeInfos.length > 0) {
-      console.log(`Saving ${remainingNodeInfos.length} remaining messages...`);
-      
-      const messages = remainingNodeInfos.map((info) => ({
-        actorIndex: info.actorIndex,
-        text: info.node.textContent.trim(),
-        timestamp: info.timestamp,
-        type: info.type,
-      }));
-      
-      try {
-        // 저장 요청
-        const response = await new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({
-            type: "background.saveMeeting",
-            meetingInfo: this.meeting.meetingInfo,
-            messages: messages,
-          }, (response) => {
-            if (chrome.runtime.lastError) {
-              reject(chrome.runtime.lastError);
-            } else {
-              resolve(response);
-            }
-          });
-        });
-
-        if (response && response.success) {
-          console.log("All remaining messages saved successfully");
-        } else {
-          throw new Error("Failed to save remaining messages");
-        }
-      } catch (error) {
-        console.error("Error saving messages:", error);
-      }
-    } else {
-      console.log("No remaining messages to save");
+  handleUnload = async () => {
+    if (this.isSaving) {
+      return;
     }
-    
+    this.isSaving = true;
+
+    try {
+      await this.flushPendingSaves();
+    } catch (error) {
+      if (!RuntimeHelper.isContextInvalidated(error)) {
+        console.error('Error saving captions on unload:', error);
+      }
+    }
+
     this.cleanup();
   }
 
   cleanup() {
-    // 이벤트 리스너 제거
-    window.removeEventListener("beforeunload", this.handleUnload);
-    window.removeEventListener("unload", this.handleUnload);
-
-    // Observer 종료
+    window.removeEventListener('beforeunload', this.handleUnload);
+    window.removeEventListener('unload', this.handleUnload);
+    window.removeEventListener('pagehide', this.handleUnload);
     this.observer.disconnect();
   }
 }
@@ -492,47 +674,100 @@ class MeetAssistant {
     this.participantsObserver = null;
   }
 
-  async enableCaptionsButton() {
-    // 새 UI에서도 최대한 자막 버튼을 찾아보되,
-    // 찾지 못하더라도 전체 흐름이 멈추지 않도록 베스트 에포트만 수행
-    const maxAttempts = 10;
-    let attempt = 0;
-
-    const captionButtonSelectors = [
+  findCaptionsButton() {
+    const selectors = [
+      'button[aria-label*="Turn on captions"]',
+      'button[aria-label*="Turn off captions"]',
       'button[aria-label*="Captions"]',
+      'button[aria-label*="captions"]',
       'button[aria-label*="Subtitles"]',
       'button[aria-label*="Closed captions"]',
-      'button[jsname="r8qRAd"]'
+      'button[aria-label*="زیرنویس"]',
+      'button[aria-label*="عنوان"]',
+      'button[data-tooltip*="caption"]',
+      'button[data-tooltip*="Caption"]',
+      'button[data-tooltip*="زیرنویس"]',
     ];
 
-    while (attempt < maxAttempts) {
-      let captionBtn = null;
-      for (const selector of captionButtonSelectors) {
-        captionBtn = document.querySelector(selector);
-        if (captionBtn) break;
+    for (const selector of selectors) {
+      try {
+        const button = document.querySelector(selector);
+        if (button) {
+          return button;
+        }
+      } catch {
+        // Some selector patterns may be unsupported; continue.
       }
+    }
+
+    const labelPattern = /caption|subtitle|closed.?caption|زیرنویس|عنوان.?نویس/i;
+    for (const button of document.querySelectorAll('button[aria-label]')) {
+      const label = button.getAttribute('aria-label') || '';
+      if (labelPattern.test(label)) {
+        return button;
+      }
+    }
+
+    for (const icon of document.querySelectorAll('button i.google-symbols, button .google-symbols')) {
+      const symbol = icon.textContent?.trim();
+      if (symbol === 'closed_caption' || symbol === 'subtitles' || symbol === 'closed_caption_off') {
+        const button = icon.closest('button');
+        if (button) {
+          return button;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  areCaptionsVisible() {
+    return Boolean(
+      document.querySelector('[role="region"][aria-label="Captions"] .ygicle') ||
+      document.querySelector('.ygicle.VbkSUe') ||
+      document.querySelector('.ygicle[class*="VbkSU"]')
+    );
+  }
+
+  async enableCaptionsButton() {
+    const maxAttempts = 30;
+    let attempt = 0;
+
+    while (attempt < maxAttempts) {
+      const captionBtn = this.findCaptionsButton();
 
       if (captionBtn) {
-        // 이미 켜져 있으면 그대로 두고, 꺼져 있으면 클릭
-        const ariaPressed = captionBtn.getAttribute("aria-pressed");
-        const ariaLabel = captionBtn.getAttribute("aria-label") || "";
+        const ariaPressed = captionBtn.getAttribute('aria-pressed');
+        const ariaLabel = captionBtn.getAttribute('aria-label') || '';
+        const iconSymbol = captionBtn.querySelector('i.google-symbols, .google-symbols')?.textContent?.trim() || '';
         const isOn =
-          ariaPressed === "true" ||
-          /turn (off|off captions)/i.test(ariaLabel) ||
-          /자막 끄기/.test(ariaLabel);
+          ariaPressed === 'true' ||
+          iconSymbol === 'closed_caption_off' ||
+          /turn off/i.test(ariaLabel) ||
+          /off captions/i.test(ariaLabel) ||
+          /خاموش/.test(ariaLabel) ||
+          /زیرنویس.*خاموش/.test(ariaLabel) ||
+          /غیرفعال.*زیرنویس/.test(ariaLabel);
 
         if (!isOn) {
           captionBtn.click();
-          console.log("Captions enabled (best-effort)");
+          console.log('Captions enabled');
         }
         return;
       }
 
-      attempt++;
+      if (this.areCaptionsVisible()) {
+        console.log('Captions already visible');
+        return;
+      }
+
+      attempt += 1;
       await Utils.sleep(500);
     }
 
-    console.warn("Could not find captions toggle button; continuing without auto-enabling.");
+    if (!this.areCaptionsVisible()) {
+      console.warn('Could not find captions toggle button. Turn captions on manually in Google Meet.');
+    }
   }
 
   async init() {
