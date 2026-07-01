@@ -4,6 +4,238 @@ class Utils {
   }
 }
 
+class DomHelper {
+  static walkElements(root, callback) {
+    const visit = (node) => {
+      if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+      callback(node);
+      if (node.shadowRoot) {
+        node.shadowRoot.childNodes.forEach(visit);
+      }
+      node.childNodes.forEach(visit);
+    };
+    visit(root);
+  }
+
+  static queryAll(root, selector) {
+    const results = [];
+    this.walkElements(root, (element) => {
+      try {
+        element.querySelectorAll(selector).forEach((match) => results.push(match));
+      } catch {
+        // Ignore unsupported selectors.
+      }
+    });
+    return results;
+  }
+
+  static query(root, selector) {
+    return this.queryAll(root, selector)[0] || null;
+  }
+}
+
+class CaptionDom {
+  static REGION_LABEL_PATTERN = /caption|subtitle|closed.?caption|زیرنویس|عنوان.?نویس|字幕|sous-titre|untertitel|leyenda/i;
+  static BUTTON_LABEL_PATTERN = /caption|subtitle|closed.?caption|زیرنویس|عنوان.?نویس|字幕/i;
+  static CAPTIONS_ON_PATTERN = /turn off|hide caption|disable caption|disable subtitle|خاموش|غیرفعال|بستن.*زیرنویس|关闭字幕/i;
+  static CAPTIONS_OFF_PATTERN = /turn on|show caption|enable caption|enable subtitle|فعال.?سازی|روشن|نمایش.*زیرنویس|باز کردن.*زیرنویس|开启字幕/i;
+
+  static getCaptionsRegion() {
+    for (const element of DomHelper.queryAll(document, '[role="region"][aria-label]')) {
+      const label = element.getAttribute('aria-label') || '';
+      if (this.REGION_LABEL_PATTERN.test(label)) {
+        return element;
+      }
+    }
+
+    const captionEl = DomHelper.query(document, '.ygicle.VbkSUe, .ygicle[class*="VbkSU"], .nMcdL .ygicle');
+    if (captionEl) {
+      return (
+        captionEl.closest('[role="region"]') ||
+        captionEl.closest('.vNKgIf.UDinHf, .iOzk7, .a4cQT') ||
+        captionEl.parentElement
+      );
+    }
+
+    return document.querySelector('.vNKgIf.UDinHf') || document.querySelector('.iOzk7') || null;
+  }
+
+  static hasVisibleCaptionText() {
+    return Boolean(
+      DomHelper.query(document, '[role="region"][aria-label] .ygicle') ||
+      DomHelper.query(document, '.ygicle.VbkSUe') ||
+      DomHelper.query(document, '.ygicle[class*="VbkSU"]') ||
+      DomHelper.query(document, '.nMcdL .ygicle')
+    );
+  }
+
+  static findCaptionsButton() {
+    const selectors = [
+      'button[jsname="r6bRZb"]',
+      'button[aria-label*="Turn on captions"]',
+      'button[aria-label*="Turn off captions"]',
+      'button[aria-label*="Captions"]',
+      'button[aria-label*="captions"]',
+      'button[aria-label*="Subtitles"]',
+      'button[aria-label*="Closed captions"]',
+      'button[aria-label*="زیرنویس"]',
+      'button[aria-label*="عنوان"]',
+      'button[aria-label*="字幕"]',
+      'button[data-tooltip*="caption"]',
+      'button[data-tooltip*="Caption"]',
+      'button[data-tooltip*="زیرنویس"]',
+    ];
+
+    for (const selector of selectors) {
+      const button = DomHelper.query(document, selector);
+      if (button) {
+        return button;
+      }
+    }
+
+    for (const button of DomHelper.queryAll(document, 'button[aria-label], button[data-tooltip]')) {
+      const label = `${button.getAttribute('aria-label') || ''} ${button.getAttribute('data-tooltip') || ''}`;
+      if (this.BUTTON_LABEL_PATTERN.test(label)) {
+        return button;
+      }
+    }
+
+    for (const icon of DomHelper.queryAll(document, 'button i.google-symbols, button .google-symbols')) {
+      const symbol = icon.textContent?.trim();
+      if (symbol === 'closed_caption' || symbol === 'subtitles' || symbol === 'closed_caption_off') {
+        const button = icon.closest('button');
+        if (button) {
+          return button;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  static isCaptionsButtonOn(button) {
+    const ariaPressed = button.getAttribute('aria-pressed');
+    const label = `${button.getAttribute('aria-label') || ''} ${button.getAttribute('data-tooltip') || ''}`;
+    const iconSymbol = button.querySelector('i.google-symbols, .google-symbols')?.textContent?.trim() || '';
+
+    if (ariaPressed === 'true') {
+      return true;
+    }
+    if (ariaPressed === 'false') {
+      return false;
+    }
+    if (iconSymbol === 'closed_caption_off') {
+      return true;
+    }
+    if (iconSymbol === 'closed_caption' || iconSymbol === 'subtitles') {
+      return false;
+    }
+    if (this.CAPTIONS_ON_PATTERN.test(label)) {
+      return true;
+    }
+    if (this.CAPTIONS_OFF_PATTERN.test(label)) {
+      return false;
+    }
+
+    return this.hasVisibleCaptionText();
+  }
+
+  static isInCall() {
+    const inCallSelectors = [
+      'button[jsname="r8qRAd"]',
+      'button[aria-label*="Leave call"]',
+      'button[aria-label*="Leave meeting"]',
+      'button[aria-label*="End call"]',
+      'button[aria-label*="خروج"]',
+      'button[aria-label*="ترک"]',
+      'button[aria-label*="پایان"]',
+    ];
+    return inCallSelectors.some((selector) => Boolean(DomHelper.query(document, selector)));
+  }
+
+  static tryKeyboardShortcut() {
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+    const init = { key: 'c', code: 'KeyC', bubbles: true, cancelable: true };
+    const targets = [document.activeElement, document.body].filter(Boolean);
+
+    targets.forEach((target) => {
+      if (isMac) {
+        target.dispatchEvent(new KeyboardEvent('keydown', { ...init, metaKey: true, shiftKey: true }));
+        target.dispatchEvent(new KeyboardEvent('keyup', { ...init, metaKey: true, shiftKey: true }));
+      } else {
+        target.dispatchEvent(new KeyboardEvent('keydown', { ...init }));
+        target.dispatchEvent(new KeyboardEvent('keyup', { ...init }));
+      }
+    });
+  }
+
+  static async tryOpenCaptionsFromMenu() {
+    const moreButton =
+      DomHelper.query(document, 'button[jsname="NakZHc"]') ||
+      DomHelper.query(document, 'button[aria-label*="More options"]') ||
+      DomHelper.query(document, 'button[aria-label*="گزینه"]') ||
+      DomHelper.query(document, 'button[aria-label*="بیشتر"]');
+
+    if (!moreButton) {
+      return false;
+    }
+
+    moreButton.click();
+    await Utils.sleep(400);
+
+    const menuItems = DomHelper.queryAll(document, '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]');
+    for (const item of menuItems) {
+      const label = `${item.textContent || ''} ${item.getAttribute('aria-label') || ''}`;
+      if (this.BUTTON_LABEL_PATTERN.test(label)) {
+        item.click();
+        return true;
+      }
+    }
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+    return false;
+  }
+
+  static waitFor(predicate, timeoutMs = 120000, intervalMs = 300) {
+    return new Promise((resolve) => {
+      const startedAt = Date.now();
+      let settled = false;
+      let observer;
+
+      const finish = (value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        observer?.disconnect();
+        resolve(value);
+      };
+
+      const check = () => {
+        if (predicate()) {
+          finish(true);
+          return;
+        }
+        if (Date.now() - startedAt >= timeoutMs) {
+          finish(false);
+        }
+      };
+
+      observer = new MutationObserver(check);
+      observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+      check();
+      const intervalId = setInterval(() => {
+        check();
+        if (settled) {
+          clearInterval(intervalId);
+        }
+      }, intervalMs);
+    });
+  }
+}
+
 class RuntimeHelper {
   static isAvailable() {
     try {
@@ -85,17 +317,6 @@ class Meeting {
 
         if (response && response.success) {
           console.log('Successfully saved:', messages);
-          try {
-            await RuntimeHelper.sendMessage({
-              type: 'meetings.syncMeetingUI',
-              meetingStartTime: this.meetingInfo.meetingStartTime,
-              isCurrentMeeting: true,
-            });
-          } catch (syncError) {
-            if (!RuntimeHelper.isContextInvalidated(syncError)) {
-              console.warn('UI sync skipped:', syncError);
-            }
-          }
           return true;
         }
 
@@ -127,20 +348,29 @@ class CaptionsObserver {
     this.savesInFlight = new Set();
     this.currentUtterance = null;
     this.liveBlock = null;
+    this.stabilityTimer = null;
+    this.STABILITY_MS = 1500;
     this.isBackgroundActive = false;
     this.isSaving = false;
   }
 
   getCaptionsRegion() {
-    return (
-      document.querySelector('[role="region"][aria-label="Captions"]') ||
-      document.querySelector('.vNKgIf.UDinHf') ||
-      document.querySelector('.iOzk7')
-    );
+    return CaptionDom.getCaptionsRegion();
+  }
+
+  isCaptionInRegion(element) {
+    const region = this.getCaptionsRegion();
+    if (!region) {
+      return CaptionDom.hasVisibleCaptionText();
+    }
+    return region.contains(element);
   }
 
   isCaptionBlock(element) {
-    return Boolean(element?.matches?.('.nMcdL.bj4p3b') || element?.matches?.('.nMcdL'));
+    if (element?.matches?.('.nMcdL.bj4p3b') || element?.matches?.('.nMcdL')) {
+      return true;
+    }
+    return this.isCaptionTextElement(element) && this.isCaptionInRegion(element);
   }
 
   findCaptionBlock(node) {
@@ -154,10 +384,23 @@ class CaptionsObserver {
     if (this.isCaptionBlock(element)) {
       return element;
     }
-    return element.closest('.nMcdL.bj4p3b') || element.closest('.nMcdL');
+
+    const block =
+      element.closest('.nMcdL.bj4p3b') ||
+      element.closest('.nMcdL') ||
+      element.closest('.ygicle.VbkSUe, .ygicle[class*="VbkSU"], .ygicle');
+
+    if (block && (block.matches('.nMcdL') || this.isCaptionInRegion(block))) {
+      return block;
+    }
+
+    return null;
   }
 
   getCaptionTextNode(blockNode) {
+    if (blockNode?.matches?.('.ygicle')) {
+      return blockNode;
+    }
     return blockNode.querySelector('.ygicle.VbkSUe, .ygicle[class*="VbkSU"], .ygicle');
   }
 
@@ -180,13 +423,24 @@ class CaptionsObserver {
     return this.getCaptionTextNode(block);
   }
 
-  resolveActorIndex(speakerNode) {
+  getSpeakerContext(blockNode) {
+    return (
+      blockNode.closest('.nMcdL.bj4p3b') ||
+      blockNode.closest('.nMcdL') ||
+      blockNode.closest('.NmXUuc') ||
+      blockNode.closest('.a4cQT') ||
+      blockNode.parentElement
+    );
+  }
+
+  resolveActorIndex(blockNode) {
+    const speakerNode = this.getSpeakerContext(blockNode);
     const name =
-      speakerNode.querySelector('.KcIKyf.jxFHg .NWpY1d')?.textContent.trim() ||
-      speakerNode.querySelector('.KcIKyf.jxFHg')?.textContent.trim() ||
-      speakerNode.querySelector('.NWpY1d')?.textContent.trim() ||
+      speakerNode?.querySelector('.KcIKyf.jxFHg .NWpY1d')?.textContent.trim() ||
+      speakerNode?.querySelector('.KcIKyf.jxFHg')?.textContent.trim() ||
+      speakerNode?.querySelector('.NWpY1d')?.textContent.trim() ||
       'Unknown';
-    const imageUrl = speakerNode.querySelector('img.Z6byG.r6DyN')?.src || '';
+    const imageUrl = speakerNode?.querySelector('img.Z6byG.r6DyN')?.src || '';
 
     let actorIndex = this.meeting.meetingInfo.participants.findIndex(
       (p) => (imageUrl && p.imageUrl === imageUrl) || p.name === name
@@ -208,12 +462,13 @@ class CaptionsObserver {
   }
 
   getSpeakerKey(blockNode) {
+    const speakerNode = this.getSpeakerContext(blockNode);
     const name =
-      blockNode.querySelector('.KcIKyf.jxFHg .NWpY1d')?.textContent.trim() ||
-      blockNode.querySelector('.KcIKyf.jxFHg')?.textContent.trim() ||
-      blockNode.querySelector('.NWpY1d')?.textContent.trim() ||
+      speakerNode?.querySelector('.KcIKyf.jxFHg .NWpY1d')?.textContent.trim() ||
+      speakerNode?.querySelector('.KcIKyf.jxFHg')?.textContent.trim() ||
+      speakerNode?.querySelector('.NWpY1d')?.textContent.trim() ||
       'Unknown';
-    const imageUrl = blockNode.querySelector('img.Z6byG.r6DyN')?.src || '';
+    const imageUrl = speakerNode?.querySelector('img.Z6byG.r6DyN')?.src || '';
     return `${name}::${imageUrl}`;
   }
 
@@ -235,8 +490,48 @@ class CaptionsObserver {
       actorIndex: this.resolveActorIndex(blockNode),
       speakerKey: this.getSpeakerKey(blockNode),
       peakText: text,
+      lastSavedText: '',
     };
     this.liveBlock = blockNode;
+  }
+
+  clearStabilityTimer() {
+    if (this.stabilityTimer) {
+      clearTimeout(this.stabilityTimer);
+      this.stabilityTimer = null;
+    }
+  }
+
+  scheduleStabilityFinalize() {
+    this.clearStabilityTimer();
+    this.stabilityTimer = setTimeout(() => {
+      this.stabilityTimer = null;
+      void this.finalizeStableUtterance();
+    }, this.STABILITY_MS);
+  }
+
+  isUnrelatedCaptionChange(previousText, nextText) {
+    if (!previousText || !nextText || previousText === nextText) {
+      return false;
+    }
+    return !nextText.startsWith(previousText) && !previousText.startsWith(nextText);
+  }
+
+  async finalizeStableUtterance() {
+    if (!this.currentUtterance) {
+      return;
+    }
+
+    const text = this.normalizeText(this.currentUtterance.peakText);
+    const saved = this.normalizeText(this.currentUtterance.lastSavedText || '');
+    if (!text || text === saved) {
+      return;
+    }
+
+    const success = await this.saveUtterance(this.currentUtterance);
+    if (success) {
+      this.currentUtterance.lastSavedText = text;
+    }
   }
 
   async saveUtterance(utterance) {
@@ -284,6 +579,7 @@ class CaptionsObserver {
       return;
     }
 
+    this.clearStabilityTimer();
     const utterance = this.currentUtterance;
     this.currentUtterance = null;
     await this.saveUtterance(utterance);
@@ -291,7 +587,7 @@ class CaptionsObserver {
 
   async processCaptionBlock(blockNode) {
     const captionNode = this.getCaptionTextNode(blockNode);
-    if (!captionNode || captionNode.closest('.KcIKyf.jxFHg')) {
+    if (!captionNode || captionNode.matches('.NWpY1d')) {
       return;
     }
 
@@ -302,6 +598,7 @@ class CaptionsObserver {
 
     if (!this.currentUtterance) {
       this.startUtterance(blockNode, text);
+      this.scheduleStabilityFinalize();
       return;
     }
 
@@ -312,12 +609,28 @@ class CaptionsObserver {
     if (!sameBlock || !sameSpeaker) {
       await this.closeCurrentUtterance();
       this.startUtterance(blockNode, text);
+      this.scheduleStabilityFinalize();
       return;
     }
 
-    if (text.length > this.currentUtterance.peakText.length) {
+    const previousPeak = this.normalizeText(this.currentUtterance.peakText);
+    if (this.isUnrelatedCaptionChange(previousPeak, text)) {
+      if (previousPeak !== this.normalizeText(this.currentUtterance.lastSavedText || '')) {
+        await this.saveUtterance({
+          ...this.currentUtterance,
+          peakText: previousPeak,
+        });
+      }
+      this.currentUtterance.peakText = text;
+      this.currentUtterance.lastSavedText = '';
+      this.scheduleStabilityFinalize();
+      return;
+    }
+
+    if (text.length >= previousPeak.length) {
       this.currentUtterance.peakText = text;
     }
+    this.scheduleStabilityFinalize();
   }
 
   collectNodesToProcess(mutation) {
@@ -353,7 +666,7 @@ class CaptionsObserver {
           blocksToProcess.add(block);
         }
         if (node.nodeType === Node.ELEMENT_NODE) {
-          node.querySelectorAll?.('.nMcdL.bj4p3b, .nMcdL').forEach((childBlock) => {
+          node.querySelectorAll?.('.nMcdL.bj4p3b, .nMcdL, .ygicle.VbkSUe, .ygicle[class*="VbkSU"], .ygicle').forEach((childBlock) => {
             blocksToProcess.add(childBlock);
           });
         }
@@ -367,11 +680,16 @@ class CaptionsObserver {
 
   scanExistingCaptions() {
     const region = this.getCaptionsRegion();
-    if (!region) {
-      return;
-    }
+    const selector = '.nMcdL.bj4p3b, .nMcdL, .ygicle.VbkSUe, .ygicle[class*="VbkSU"], .ygicle';
+    const scope = region || document;
+    const rawBlocks = [...scope.querySelectorAll(selector)];
+    const blocks = rawBlocks.filter((element) => {
+      if (!element.matches('.ygicle')) {
+        return true;
+      }
+      return !rawBlocks.some((other) => other !== element && other.contains(element));
+    });
 
-    const blocks = region.querySelectorAll('.nMcdL.bj4p3b, .nMcdL');
     if (blocks.length === 0) {
       return;
     }
@@ -380,51 +698,26 @@ class CaptionsObserver {
     const text = this.getBlockText(lastBlock);
     if (text) {
       this.startUtterance(lastBlock, text);
+      this.scheduleStabilityFinalize();
     }
   }
 
   async flushPendingSaves() {
+    this.clearStabilityTimer();
+    await this.finalizeStableUtterance();
     await this.closeCurrentUtterance();
   }
 
   async waitForCaptions() {
-    const regionSelectors = [
-      '[role="region"][aria-label="Captions"]',
-      '.vNKgIf.UDinHf',
-      '.iOzk7',
-      '.ygicle.VbkSUe',
-      '.ygicle[class*="VbkSU"]',
-    ];
-    const inCallSelectors = [
-      'button[aria-label*="Leave call"]',
-      'button[aria-label*="Leave meeting"]',
-      'button[aria-label*="خروج"]',
-      'button[jsname="r8qRAd"]',
-    ];
-
-    const maxWaitMs = 120000;
-    const startedAt = Date.now();
-
-    while (Date.now() - startedAt < maxWaitMs) {
-      for (const selector of regionSelectors) {
-        const captionsContainer = document.querySelector(selector);
-        if (captionsContainer) {
-          console.log('Captions region detected:', selector);
-          return captionsContainer;
-        }
-      }
-
-      const inCall = inCallSelectors.some((selector) => document.querySelector(selector));
-      if (inCall && Date.now() - startedAt > 5000) {
-        console.log('Meeting detected. Waiting for captions while observing the page.');
-        return document.body;
-      }
-
-      await Utils.sleep(300);
+    const inCall = await CaptionDom.waitFor(() => CaptionDom.isInCall() || CaptionDom.getCaptionsRegion(), 120000);
+    if (!inCall) {
+      console.warn('Captions region not found in time. Observing the page anyway.');
+    } else if (CaptionDom.getCaptionsRegion()) {
+      console.log('Captions region detected');
+    } else {
+      console.log('Meeting detected. Waiting for captions while observing the page.');
     }
-
-    console.warn('Captions region not found in time. Observing the page anyway.');
-    return document.body;
+    return CaptionDom.getCaptionsRegion() || document.body;
   }
 
   async run() {
@@ -536,6 +829,7 @@ class CaptionsObserver {
   }
 
   cleanup() {
+    this.clearStabilityTimer();
     window.removeEventListener('beforeunload', this.handleUnload);
     window.removeEventListener('unload', this.handleUnload);
     window.removeEventListener('pagehide', this.handleUnload);
@@ -674,95 +968,57 @@ class MeetAssistant {
     this.participantsObserver = null;
   }
 
-  findCaptionsButton() {
-    const selectors = [
-      'button[aria-label*="Turn on captions"]',
-      'button[aria-label*="Turn off captions"]',
-      'button[aria-label*="Captions"]',
-      'button[aria-label*="captions"]',
-      'button[aria-label*="Subtitles"]',
-      'button[aria-label*="Closed captions"]',
-      'button[aria-label*="زیرنویس"]',
-      'button[aria-label*="عنوان"]',
-      'button[data-tooltip*="caption"]',
-      'button[data-tooltip*="Caption"]',
-      'button[data-tooltip*="زیرنویس"]',
-    ];
-
-    for (const selector of selectors) {
-      try {
-        const button = document.querySelector(selector);
-        if (button) {
-          return button;
-        }
-      } catch {
-        // Some selector patterns may be unsupported; continue.
-      }
-    }
-
-    const labelPattern = /caption|subtitle|closed.?caption|زیرنویس|عنوان.?نویس/i;
-    for (const button of document.querySelectorAll('button[aria-label]')) {
-      const label = button.getAttribute('aria-label') || '';
-      if (labelPattern.test(label)) {
-        return button;
-      }
-    }
-
-    for (const icon of document.querySelectorAll('button i.google-symbols, button .google-symbols')) {
-      const symbol = icon.textContent?.trim();
-      if (symbol === 'closed_caption' || symbol === 'subtitles' || symbol === 'closed_caption_off') {
-        const button = icon.closest('button');
-        if (button) {
-          return button;
-        }
-      }
-    }
-
-    return null;
+  areCaptionsVisible() {
+    return CaptionDom.hasVisibleCaptionText();
   }
 
-  areCaptionsVisible() {
-    return Boolean(
-      document.querySelector('[role="region"][aria-label="Captions"] .ygicle') ||
-      document.querySelector('.ygicle.VbkSUe') ||
-      document.querySelector('.ygicle[class*="VbkSU"]')
-    );
+  findCaptionsButton() {
+    return CaptionDom.findCaptionsButton();
   }
 
   async enableCaptionsButton() {
-    const maxAttempts = 30;
-    let attempt = 0;
+    if (this.areCaptionsVisible()) {
+      console.log('Captions already visible');
+      return;
+    }
 
-    while (attempt < maxAttempts) {
-      const captionBtn = this.findCaptionsButton();
+    const joined = await CaptionDom.waitFor(() => CaptionDom.isInCall(), 90000);
+    if (!joined) {
+      console.warn('Meeting UI not ready yet. Captions will be enabled when controls appear.');
+    }
 
-      if (captionBtn) {
-        const ariaPressed = captionBtn.getAttribute('aria-pressed');
-        const ariaLabel = captionBtn.getAttribute('aria-label') || '';
-        const iconSymbol = captionBtn.querySelector('i.google-symbols, .google-symbols')?.textContent?.trim() || '';
-        const isOn =
-          ariaPressed === 'true' ||
-          iconSymbol === 'closed_caption_off' ||
-          /turn off/i.test(ariaLabel) ||
-          /off captions/i.test(ariaLabel) ||
-          /خاموش/.test(ariaLabel) ||
-          /زیرنویس.*خاموش/.test(ariaLabel) ||
-          /غیرفعال.*زیرنویس/.test(ariaLabel);
+    await CaptionDom.waitFor(
+      () => this.findCaptionsButton() || this.areCaptionsVisible(),
+      120000
+    );
 
-        if (!isOn) {
-          captionBtn.click();
-          console.log('Captions enabled');
-        }
+    if (this.areCaptionsVisible()) {
+      console.log('Captions already visible');
+      return;
+    }
+
+    const captionBtn = this.findCaptionsButton();
+    if (captionBtn && !CaptionDom.isCaptionsButtonOn(captionBtn)) {
+      captionBtn.click();
+      await Utils.sleep(800);
+      if (this.areCaptionsVisible() || CaptionDom.isCaptionsButtonOn(captionBtn)) {
+        console.log('Captions enabled');
         return;
       }
+    }
 
-      if (this.areCaptionsVisible()) {
-        console.log('Captions already visible');
-        return;
-      }
+    CaptionDom.tryKeyboardShortcut();
+    await Utils.sleep(800);
+    if (this.areCaptionsVisible()) {
+      console.log('Captions enabled via keyboard shortcut');
+      return;
+    }
 
-      attempt += 1;
-      await Utils.sleep(500);
+    await CaptionDom.tryOpenCaptionsFromMenu();
+    await Utils.sleep(800);
+    if (this.areCaptionsVisible()) {
+      console.log('Captions enabled via menu');
+      return;
     }
 
     if (!this.areCaptionsVisible()) {

@@ -22,6 +22,11 @@ export class DataRequestHandler {
             // UI 업데이트 메시지 전송
             try {
                 chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
+                chrome.runtime.sendMessage({
+                    type: "meetings.syncMeetingUI",
+                    meetingStartTime: request.meetingInfo.meetingStartTime,
+                    isCurrentMeeting: true,
+                });
                 console.log("UI update message sent");
             } catch (error) {
                 console.log("UI update skipped:", error);
