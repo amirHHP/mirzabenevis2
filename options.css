@@ -222,3 +222,94 @@ body {
 [dir="rtl"] .popup .btn {
     flex-direction: row-reverse;
 }
+
+.btn-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.popup .btn-outline {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--border);
+}
+
+.popup .btn-outline:hover {
+    border-color: var(--accent);
+}
+
+.cloud-status-line {
+    margin-bottom: 10px;
+}
+
+.cloud-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    word-break: break-all;
+}
+
+[dir="rtl"] .btn-row {
+    direction: rtl;
+}
+
+.pro-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.pro-card-header .card-title {
+    margin-bottom: 0;
+}
+
+.pro-badge-free {
+    background: #ede8f0;
+    color: #6b6470;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+}
+
+.pro-badge-active {
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid #fde68a;
+}
+
+.pro-active-box {
+    background: #fdfaf3;
+    border: 1px solid #f3e8cc;
+    border-radius: 10px;
+    padding: 12px;
+}
+
+.pro-status-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #92400e;
+    font-size: 13px;
+}
+
+.pro-icon {
+    font-size: 14px;
+}
+
+.font-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: 0.03em;
+    font-size: 12px;
+}

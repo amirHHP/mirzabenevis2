@@ -92,9 +92,11 @@ body {
     font-size: 0.9375rem;
 }
 
-.container {
+.container,
+.main-container .container {
     display: flex;
     width: 100%;
+    max-width: none !important;
     height: 100%;
     margin: 0;
     padding: 0;
@@ -107,11 +109,63 @@ body {
     color: #CFC3CF;
     padding: 8px 0;
     width: 260px;
-    min-width: 200px;
-    max-width: 400px;
+    min-width: 180px;
+    max-width: 600px;
     flex-shrink: 0;
-    resize: horizontal;
     overflow-x: hidden;
+    direction: rtl;
+}
+
+.sidebar-resizer {
+    width: 5px;
+    height: 100%;
+    cursor: col-resize;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-right: 1px solid rgba(0, 0, 0, 0.12);
+    border-left: 1px solid rgba(255, 255, 255, 0.04);
+    flex-shrink: 0;
+    position: relative;
+    user-select: none;
+    z-index: 20;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.sidebar-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    right: -4px;
+    cursor: col-resize;
+    z-index: 1;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.is-dragging {
+    background-color: #1164A3;
+    border-color: #1164A3;
+}
+
+.sidebar-resizer:focus-visible {
+    outline: 2px solid #1164A3;
+    outline-offset: -1px;
+}
+
+body.sidebar-resizing {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
+body.sidebar-resizing * {
+    user-select: none !important;
+    pointer-events: none !important;
+}
+
+body.sidebar-resizing .sidebar-resizer {
+    pointer-events: auto !important;
+    background-color: #1164A3 !important;
+    border-color: #1164A3 !important;
 }
 
 .meeting-group {
@@ -119,33 +173,40 @@ body {
 }
 
 .meeting-group-header {
-    padding: 4px 16px;
+    padding: 6px 16px;
     cursor: pointer;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 14px;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     user-select: none;
     color: #fff;
+    direction: rtl;
+}
+
+.meeting-group-header .bi-calendar {
+    font-size: 13px;
+    opacity: 0.8;
 }
 
 .meeting-group-header .count {
     color: #CFC3CF;
     opacity: 0.7;
-    font-size: 13px;
-    margin-left: 4px;
+    font-size: 12px;
+    margin-inline-start: 4px;
 }
 
 .meeting-group-header .bi-chevron-down {
-    margin-left: auto;
+    margin-inline-start: auto;
+    float: none !important;
     font-size: 12px;
     opacity: 0.7;
     transition: transform 0.2s ease-out;
 }
 
 .meeting-group-header.collapsed .bi-chevron-down {
-    transform: rotate(-90deg);
+    transform: rotate(90deg);
 }
 
 .meetings-container {
@@ -165,14 +226,16 @@ body {
     color: #CFC3CF;
     display: flex;
     align-items: center;
-    padding: 0 16px;
-    min-height: 28px;
+    padding: 5px 10px 5px 8px;
+    min-height: 38px;
     height: auto;
-    font-size: 15px;
+    font-size: 14px;
     position: relative;
     transition: background-color 0.2s ease-out;
     overflow: hidden;
-    gap: 8px;
+    gap: 7px;
+    direction: rtl;
+    text-align: right;
 }
 
 .list-group-item:hover {
@@ -183,22 +246,6 @@ body {
     background-color: #1164A3;
 }
 
-.meeting-id {
-    opacity: 0.7;
-    font-size: 15px;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.meeting-time {
-    opacity: 0.7;
-    font-size: 13px;
-    margin-left: auto;
-    padding-right: 24px;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
 .meeting-title {
     flex: 1;
     min-width: 0;
@@ -206,37 +253,167 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
     cursor: pointer;
+    text-align: right;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #E8DCE8;
+}
+
+.list-group-item.active .meeting-title {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.meeting-avatars {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    line-height: 1;
+    margin-inline: 2px;
+}
+
+.meeting-avatar-img,
+.meeting-avatar-initial {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid #3F0E40;
+    margin-inline-start: -6px;
+    flex-shrink: 0;
+    transition: transform 0.15s ease, border-color 0.2s ease;
+    background-color: #522653;
+}
+
+.meeting-avatar-img:first-child,
+.meeting-avatar-initial:first-child {
+    margin-inline-start: 0;
+}
+
+.meeting-avatar-initial {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 1;
+    user-select: none;
+    font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.meeting-avatar-more {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #3F0E40;
+    margin-inline-start: -6px;
+    flex-shrink: 0;
+    line-height: 1;
+    user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.meeting-avatar-empty {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #CFC3CF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.list-group-item:hover .meeting-avatar-img,
+.list-group-item:hover .meeting-avatar-initial,
+.list-group-item:hover .meeting-avatar-more {
+    border-color: #522653;
+}
+
+.list-group-item.active .meeting-avatar-img,
+.list-group-item.active .meeting-avatar-initial,
+.list-group-item.active .meeting-avatar-more {
+    border-color: #1164A3;
+}
+
+.meeting-avatar-img:hover,
+.meeting-avatar-initial:hover,
+.meeting-avatar-more:hover {
+    transform: scale(1.18);
+    z-index: 2;
+}
+
+.meeting-date {
+    font-size: 11px;
+    font-weight: 600;
+    color: #D6C7D6;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    line-height: 1.4;
+    user-select: none;
+    font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+
+.meeting-time {
+    opacity: 0.75;
+    font-size: 11.5px;
+    color: #CFC3CF;
+    white-space: nowrap;
+    flex-shrink: 0;
+    direction: ltr;
+    display: inline-block;
+    font-variant-numeric: tabular-nums;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .delete-button {
-    display: none;
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
     background: none;
     border: none;
     color: #CFC3CF;
     padding: 0;
     width: 20px;
     height: 20px;
-    font-size: 16px;
+    font-size: 15px;
     cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.2s ease-out;
-    display: flex;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    border-radius: 4px;
+    margin: 0;
+}
+
+.list-group-item:hover .delete-button {
+    opacity: 0.75;
+    visibility: visible;
+    pointer-events: auto;
 }
 
 .delete-button:hover {
     opacity: 1;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 3px;
-}
-
-.list-group-item:hover .delete-button {
-    display: flex;
+    background-color: rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    color: #ff6b6b;
+    transform: scale(1.08);
 }
 
 /* 날짜 구분선 스타일 */
@@ -646,6 +823,38 @@ body {
     white-space: normal;
 }
 
+.summary-body .summary-heading {
+    margin: 16px 0 6px 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1d1c1d;
+}
+
+.summary-body .summary-heading:first-child {
+    margin-top: 4px;
+}
+
+.summary-body .summary-list {
+    margin: 4px 0 12px 0;
+    padding-inline-start: 22px;
+}
+
+.summary-body .summary-list li {
+    margin-bottom: 4px;
+    line-height: 1.6;
+}
+
+.summary-body .summary-paragraph {
+    margin: 0 0 8px 0;
+    line-height: 1.6;
+}
+
+.summary-body .summary-divider {
+    margin: 14px 0;
+    border: 0;
+    border-top: 1px solid rgba(29, 28, 29, 0.12);
+}
+
 /* Modal Styles */
 .modal-content {
     border-radius: 8px;
@@ -781,4 +990,22 @@ body {
 .popup-menu hr {
     margin: 8px 0;
     border-top: 1px solid rgba(29,28,29,.13);
+}
+
+/* Pro & Backup Modals */
+.modal-content {
+    font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.modal .badge {
+    font-size: 0.8rem !important;
+    padding: 0.35em 0.65em !important;
+    font-weight: 500 !important;
+}
+
+.pro-features-list ul li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #495057;
 }

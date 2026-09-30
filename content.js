@@ -298,7 +298,7 @@ class Meeting {
     this.messageNodeInfos.delete(node);
   }
 
-  async saveMessages(messages) {
+  async saveMessages(messages, options = {}) {
     if (!RuntimeHelper.isAvailable()) {
       console.warn('Extension context unavailable. Reload Google Meet after updating the extension.');
       return false;
@@ -313,6 +313,7 @@ class Meeting {
           type: 'background.saveMeeting',
           meetingInfo: this.meetingInfo,
           messages,
+          replacePrefix: Boolean(options.replacePrefix),
         });
 
         if (response && response.success) {
@@ -338,6 +339,25 @@ class Meeting {
     console.error('Failed to save messages after', maxRetries, 'attempts');
     return false;
   }
+
+  async syncMeetingTitle(newTitle) {
+    if (!RuntimeHelper.isAvailable()) {
+      return false;
+    }
+    try {
+      await RuntimeHelper.sendMessage({
+        type: 'background.updateMeetingTitle',
+        meetingStartTime: this.meetingInfo.meetingStartTime,
+        meetingTitle: newTitle,
+      });
+      return true;
+    } catch (error) {
+      if (!RuntimeHelper.isContextInvalidated(error)) {
+        console.warn('Failed to sync meeting title update:', error);
+      }
+      return false;
+    }
+  }
 }
 
 class CaptionsObserver {
@@ -348,8 +368,6 @@ class CaptionsObserver {
     this.savesInFlight = new Set();
     this.currentUtterance = null;
     this.liveBlock = null;
-    this.stabilityTimer = null;
-    this.STABILITY_MS = 1500;
     this.isBackgroundActive = false;
     this.isSaving = false;
   }
@@ -484,54 +502,31 @@ class CaptionsObserver {
     this.savedMessageKeys.add(this.makeSaveKey(actorIndex, text));
   }
 
+  clearSupersededKeys(actorIndex, text) {
+    const prefix = `${actorIndex}::`;
+    for (const key of [...this.savedMessageKeys]) {
+      if (!key.startsWith(prefix)) {
+        continue;
+      }
+      const savedText = key.slice(prefix.length);
+      if (text.startsWith(savedText) && savedText !== text) {
+        this.savedMessageKeys.delete(key);
+      }
+    }
+  }
+
+  shouldSkipSave(utterance, text) {
+    return !text || this.wasAlreadySaved(utterance.actorIndex, text);
+  }
+
   startUtterance(blockNode, text) {
     this.currentUtterance = {
       blockNode,
       actorIndex: this.resolveActorIndex(blockNode),
       speakerKey: this.getSpeakerKey(blockNode),
       peakText: text,
-      lastSavedText: '',
     };
     this.liveBlock = blockNode;
-  }
-
-  clearStabilityTimer() {
-    if (this.stabilityTimer) {
-      clearTimeout(this.stabilityTimer);
-      this.stabilityTimer = null;
-    }
-  }
-
-  scheduleStabilityFinalize() {
-    this.clearStabilityTimer();
-    this.stabilityTimer = setTimeout(() => {
-      this.stabilityTimer = null;
-      void this.finalizeStableUtterance();
-    }, this.STABILITY_MS);
-  }
-
-  isUnrelatedCaptionChange(previousText, nextText) {
-    if (!previousText || !nextText || previousText === nextText) {
-      return false;
-    }
-    return !nextText.startsWith(previousText) && !previousText.startsWith(nextText);
-  }
-
-  async finalizeStableUtterance() {
-    if (!this.currentUtterance) {
-      return;
-    }
-
-    const text = this.normalizeText(this.currentUtterance.peakText);
-    const saved = this.normalizeText(this.currentUtterance.lastSavedText || '');
-    if (!text || text === saved) {
-      return;
-    }
-
-    const success = await this.saveUtterance(this.currentUtterance);
-    if (success) {
-      this.currentUtterance.lastSavedText = text;
-    }
   }
 
   async saveUtterance(utterance) {
@@ -547,20 +542,28 @@ class CaptionsObserver {
     const { actorIndex } = utterance;
     const saveKey = this.makeSaveKey(actorIndex, text);
 
-    if (this.savedMessageKeys.has(saveKey) || this.savesInFlight.has(saveKey)) {
+    if (this.savesInFlight.has(saveKey)) {
       return false;
     }
 
+    if (this.wasAlreadySaved(actorIndex, text)) {
+      return false;
+    }
+
+    this.clearSupersededKeys(actorIndex, text);
     this.savesInFlight.add(saveKey);
     try {
-      const success = await this.meeting.saveMessages([
-        {
-          actorIndex,
-          text,
-          timestamp: new Date().toISOString(),
-          type: 'caption',
-        },
-      ]);
+      const success = await this.meeting.saveMessages(
+        [
+          {
+            actorIndex,
+            text,
+            timestamp: new Date().toISOString(),
+            type: 'caption',
+          },
+        ],
+        { replacePrefix: true }
+      );
 
       if (success) {
         this.markAsSaved(actorIndex, text);
@@ -579,10 +582,29 @@ class CaptionsObserver {
       return;
     }
 
-    this.clearStabilityTimer();
     const utterance = this.currentUtterance;
     this.currentUtterance = null;
+
+    const text = this.normalizeText(utterance.peakText);
+    if (this.shouldSkipSave(utterance, text)) {
+      return;
+    }
+
     await this.saveUtterance(utterance);
+  }
+
+  updateUtterancePeak(blockNode, text) {
+    if (!this.currentUtterance) {
+      return;
+    }
+
+    const normalizedText = this.normalizeText(text);
+    const previousPeak = this.normalizeText(this.currentUtterance.peakText);
+    if (normalizedText.length >= previousPeak.length) {
+      this.currentUtterance.peakText = normalizedText;
+    }
+    this.currentUtterance.blockNode = blockNode;
+    this.liveBlock = blockNode;
   }
 
   async processCaptionBlock(blockNode) {
@@ -596,55 +618,20 @@ class CaptionsObserver {
       return;
     }
 
+    const speakerKey = this.getSpeakerKey(blockNode);
+
     if (!this.currentUtterance) {
       this.startUtterance(blockNode, text);
-      this.scheduleStabilityFinalize();
       return;
     }
 
-    const sameBlock = this.currentUtterance.blockNode === blockNode;
-    const speakerKey = this.getSpeakerKey(blockNode);
-    const sameSpeaker = this.currentUtterance.speakerKey === speakerKey;
-
-    if (!sameBlock || !sameSpeaker) {
+    if (this.currentUtterance.speakerKey !== speakerKey) {
       await this.closeCurrentUtterance();
       this.startUtterance(blockNode, text);
-      this.scheduleStabilityFinalize();
       return;
     }
 
-    const previousPeak = this.normalizeText(this.currentUtterance.peakText);
-    if (this.isUnrelatedCaptionChange(previousPeak, text)) {
-      if (previousPeak !== this.normalizeText(this.currentUtterance.lastSavedText || '')) {
-        await this.saveUtterance({
-          ...this.currentUtterance,
-          peakText: previousPeak,
-        });
-      }
-      this.currentUtterance.peakText = text;
-      this.currentUtterance.lastSavedText = '';
-      this.scheduleStabilityFinalize();
-      return;
-    }
-
-    if (text.length >= previousPeak.length) {
-      this.currentUtterance.peakText = text;
-    }
-    this.scheduleStabilityFinalize();
-  }
-
-  collectNodesToProcess(mutation) {
-    const nodes = new Set();
-    if (mutation.type === 'childList') {
-      mutation.addedNodes.forEach((node) => nodes.add(node));
-      mutation.removedNodes.forEach((node) => nodes.add(node));
-      if (mutation.target) {
-        nodes.add(mutation.target);
-      }
-    } else if (mutation.type === 'characterData') {
-      nodes.add(mutation.target);
-    }
-    return nodes;
+    this.updateUtterancePeak(blockNode, text);
   }
 
   handleMutations = (mutations) => {
@@ -652,25 +639,18 @@ class CaptionsObserver {
 
     mutations.forEach((mutation) => {
       if (mutation.type === 'childList') {
-        mutation.removedNodes.forEach((node) => {
+        mutation.addedNodes.forEach((node) => {
           const block = this.findCaptionBlock(node);
-          if (block && this.currentUtterance?.blockNode === block) {
-            void this.closeCurrentUtterance();
+          if (block) {
+            blocksToProcess.add(block);
           }
         });
       }
 
-      this.collectNodesToProcess(mutation).forEach((node) => {
-        const block = this.findCaptionBlock(node);
-        if (block) {
-          blocksToProcess.add(block);
-        }
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          node.querySelectorAll?.('.nMcdL.bj4p3b, .nMcdL, .ygicle.VbkSUe, .ygicle[class*="VbkSU"], .ygicle').forEach((childBlock) => {
-            blocksToProcess.add(childBlock);
-          });
-        }
-      });
+      const block = this.findCaptionBlock(mutation.target);
+      if (block) {
+        blocksToProcess.add(block);
+      }
     });
 
     blocksToProcess.forEach((block) => {
@@ -698,13 +678,10 @@ class CaptionsObserver {
     const text = this.getBlockText(lastBlock);
     if (text) {
       this.startUtterance(lastBlock, text);
-      this.scheduleStabilityFinalize();
     }
   }
 
   async flushPendingSaves() {
-    this.clearStabilityTimer();
-    await this.finalizeStableUtterance();
     await this.closeCurrentUtterance();
   }
 
@@ -829,7 +806,6 @@ class CaptionsObserver {
   }
 
   cleanup() {
-    this.clearStabilityTimer();
     window.removeEventListener('beforeunload', this.handleUnload);
     window.removeEventListener('unload', this.handleUnload);
     window.removeEventListener('pagehide', this.handleUnload);
@@ -837,36 +813,182 @@ class CaptionsObserver {
   }
 }
 
-class MeetingExtractor {
+class MeetingTitleExtractor {
+  static cleanTitle(rawTitle, meetingId = '') {
+    if (!rawTitle || typeof rawTitle !== 'string') {
+      return '';
+    }
+    let title = rawTitle.trim();
+    if (!title) return '';
+
+    // Remove notification counter prefix like (1) or (2)
+    title = title.replace(/^\(\d+\)\s*/, '').trim();
+
+    // Remove prefixes: "Meet - ", "Meet – " (\u2013), "Meet — " (\u2014), "Meet: ", "Google Meet - ", etc.
+    title = title.replace(/^(?:Google\s+)?Meet\s*[-–—:|]\s*/i, '').trim();
+
+    // Remove suffixes: " - Google Meet", " – Google Meet", " - Meet", " – Meet", etc.
+    title = title.replace(/\s*[-–—:|]\s*(?:Google\s+)?Meet$/i, '').trim();
+
+    // If title is just "Meet" or "Google Meet"
+    if (/^(?:Google\s+)?Meet$/i.test(title)) {
+      return '';
+    }
+
+    // If title is "Untitled Meeting" or empty
+    if (/^Untitled(?:\s+Meeting)?$/i.test(title)) {
+      return '';
+    }
+
+    return title;
+  }
+
+  static getTitleFromDom(meetingId = '') {
+    // 1. Check data-meeting-title attribute or data-call-title
+    const dataTitleEl = document.querySelector('[data-meeting-title]');
+    if (dataTitleEl) {
+      const attrTitle = dataTitleEl.getAttribute('data-meeting-title');
+      const cleaned = this.cleanTitle(attrTitle, meetingId);
+      if (cleaned && cleaned !== meetingId) return cleaned;
+      const textTitle = dataTitleEl.textContent;
+      const cleanedText = this.cleanTitle(textTitle, meetingId);
+      if (cleanedText && cleanedText !== meetingId) return cleanedText;
+    }
+
+    const dataCallEl = document.querySelector('[data-call-title]');
+    if (dataCallEl) {
+      const cleaned = this.cleanTitle(dataCallEl.getAttribute('data-call-title') || dataCallEl.textContent, meetingId);
+      if (cleaned && cleaned !== meetingId) return cleaned;
+    }
+
+    // 2. Google Meet meeting details / header selectors
+    const selectors = [
+      'div[jsname="r4nke"]',
+      '.u6vdEc',
+      'div[jscontroller="prU8yb"] .u6vdEc',
+      'div[jscontroller="prU8yb"]',
+      'div.roS0pe',
+      'div.YVO4Fc',
+      'div.J37v0b',
+      '[data-unresolved-meeting-id]',
+      '[aria-label*="Meeting details"]',
+      '[aria-label*="اطلاعات جلسه"]',
+      '[aria-label*="جزئیات جلسه"]'
+    ];
+
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el) {
+        const text = el.textContent?.trim();
+        const cleaned = this.cleanTitle(text, meetingId);
+        if (cleaned && cleaned !== meetingId) {
+          return cleaned;
+        }
+      }
+    }
+
+    // 3. Document title
+    const docTitleCleaned = this.cleanTitle(document.title, meetingId);
+    if (docTitleCleaned) {
+      return docTitleCleaned;
+    }
+
+    return '';
+  }
+
   static extractMeetingInfo() {
     try {
-      // 회의 제목 추출 시도
-      let meetingTitle = document.title;
-      if (meetingTitle.startsWith("Meet - ")) {
-        meetingTitle = meetingTitle.replace("Meet - ", "");
-      }
-
-      // URL에서 회의 ID 추출
       const meetingURL = window.location.href;
-      const meetingId = new URL(meetingURL).pathname.split("/")[1];
+      const meetingId = new URL(meetingURL).pathname.split('/')[1] || '';
       const meetingStartTime = new Date().toISOString();
       const participants = [];
 
-      console.log("Meeting Id:", meetingId);
-      console.log("Meeting Title:", meetingTitle);
-      console.log("Meeting Start Time:", meetingStartTime);
+      let meetingTitle = this.getTitleFromDom(meetingId);
+      if (!meetingTitle) {
+        meetingTitle = meetingId || 'Untitled Meeting';
+      }
+
+      console.log('Meeting Id:', meetingId);
+      console.log('Meeting Title:', meetingTitle);
+      console.log('Meeting Start Time:', meetingStartTime);
 
       return { meetingId, meetingTitle, meetingStartTime, participants };
     } catch (error) {
-      console.error("Error extracting meeting info:", error);
-      // 기본값 반환
+      console.error('Error extracting meeting info:', error);
+      const meetingId = window.location.pathname.split('/')[1] || '';
       return {
-        meetingId: window.location.pathname.split("/")[1],
-        meetingTitle: "Untitled Meeting",
+        meetingId,
+        meetingTitle: meetingId || 'Untitled Meeting',
         meetingStartTime: new Date().toISOString(),
         participants: []
       };
     }
+  }
+}
+
+class MeetingTitleObserver {
+  constructor(meeting) {
+    this.meeting = meeting;
+    this.observer = null;
+    this.headObserver = null;
+    this.pollInterval = null;
+    this.hasFoundCalendarTitle = false;
+  }
+
+  start() {
+    this.checkAndUpdate();
+
+    // Observe document title element
+    const titleEl = document.querySelector('title');
+    if (titleEl) {
+      this.observer = new MutationObserver(() => this.checkAndUpdate());
+      this.observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
+    }
+
+    // Also observe document head
+    if (document.head) {
+      this.headObserver = new MutationObserver(() => this.checkAndUpdate());
+      this.headObserver.observe(document.head, { childList: true, subtree: true });
+    }
+
+    // Poll periodically as Google Meet loads meeting details / calendar event info after join
+    let count = 0;
+    this.pollInterval = setInterval(() => {
+      count++;
+      this.checkAndUpdate();
+      if (this.hasFoundCalendarTitle || count > 60) {
+        clearInterval(this.pollInterval);
+        this.pollInterval = setInterval(() => this.checkAndUpdate(), 30000);
+      }
+    }, 2500);
+  }
+
+  checkAndUpdate() {
+    const meetingId = this.meeting.meetingInfo.meetingId;
+    const currentTitle = this.meeting.meetingInfo.meetingTitle;
+    const detected = MeetingTitleExtractor.getTitleFromDom(meetingId);
+
+    if (!detected) return;
+
+    const isGeneric = (t) => !t || t === 'Meet' || t === 'Google Meet' || t === 'Untitled Meeting';
+    const isBetter =
+      isGeneric(currentTitle) ||
+      (currentTitle === meetingId && detected !== meetingId);
+
+    if (isBetter && detected !== currentTitle) {
+      console.log('Auto-detected meeting title:', detected);
+      this.meeting.meetingInfo.meetingTitle = detected;
+      if (detected !== meetingId) {
+        this.hasFoundCalendarTitle = true;
+      }
+      void this.meeting.syncMeetingTitle(detected);
+    }
+  }
+
+  stop() {
+    if (this.observer) this.observer.disconnect();
+    if (this.headObserver) this.headObserver.disconnect();
+    if (this.pollInterval) clearInterval(this.pollInterval);
   }
 }
 
@@ -966,6 +1088,7 @@ class MeetAssistant {
   constructor() {
     this.captionsObserver = null;
     this.participantsObserver = null;
+    this.titleObserver = null;
   }
 
   areCaptionsVisible() {
@@ -1027,9 +1150,15 @@ class MeetAssistant {
   }
 
   async init() {
-    this.meeting = new Meeting(MeetingExtractor.extractMeetingInfo());
+    this.meeting = new Meeting(MeetingTitleExtractor.extractMeetingInfo());
+    this.titleObserver = new MeetingTitleObserver(this.meeting);
+    this.titleObserver.start();
     // this.participantsObserver = new ParticipantsOpserver(this.meeting);
     this.captionsObserver = new CaptionsObserver(this.meeting);
+
+    window.addEventListener('beforeunload', () => {
+      this.titleObserver?.stop();
+    });
   }
 
   async run() {

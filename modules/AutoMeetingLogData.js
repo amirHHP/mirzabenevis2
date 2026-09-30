@@ -32,7 +32,48 @@ export class AutoMeetingLogData {
         });
     }
 
-    async saveMeeting(meetingInfo, messages) {
+    mergeCaptionMessages(existingMessages, incomingMessages, replacePrefix = false) {
+        let messages = existingMessages ? [...existingMessages] : [];
+
+        incomingMessages.forEach((incoming) => {
+            const newText = (incoming.text || '').trim();
+            if (!newText) {
+                return;
+            }
+
+            if (replacePrefix) {
+                while (messages.length > 0) {
+                    const last = messages[messages.length - 1];
+                    if (last.actorIndex !== incoming.actorIndex || last.type !== 'caption') {
+                        break;
+                    }
+
+                    const lastText = (last.text || '').trim();
+                    if (newText.startsWith(lastText)) {
+                        messages.pop();
+                        continue;
+                    }
+                    break;
+                }
+            }
+
+            const last = messages[messages.length - 1];
+            if (
+                last &&
+                last.actorIndex === incoming.actorIndex &&
+                last.type === 'caption' &&
+                (last.text || '').trim() === newText
+            ) {
+                return;
+            }
+
+            messages.push(incoming);
+        });
+
+        return messages;
+    }
+
+    async saveMeeting(meetingInfo, messages, options = {}) {
         const db = await this.open();
         
         // instanceId 가져오기 (없으면 생성)
@@ -60,13 +101,32 @@ export class AutoMeetingLogData {
             getRequest.onsuccess = (event) => {
                 const storedData = event.target.result;
                 const filteredMessages = messages.filter(message => message.text && message.text.trim() !== '');
-                const updatedMessages = storedData
-                    ? [...storedData.messages, ...filteredMessages]
-                    : filteredMessages;
+                const updatedMessages = this.mergeCaptionMessages(
+                    storedData?.messages,
+                    filteredMessages,
+                    options.replacePrefix
+                );
+
+                const isGeneric = (t) => !t || t === 'Meet' || t === 'Google Meet' || t === 'Untitled Meeting';
+                let finalTitle = meetingInfo.meetingTitle;
+                if (storedData?.meetingTitle && !isGeneric(storedData.meetingTitle)) {
+                    if (isGeneric(finalTitle) || finalTitle === meetingInfo.meetingId) {
+                        finalTitle = storedData.meetingTitle;
+                    }
+                } else if (isGeneric(finalTitle)) {
+                    finalTitle = meetingInfo.meetingId || 'Untitled Meeting';
+                }
 
                 const putRequest = objectStore.put({ 
+                    ...storedData,
                     ...meetingInfo, 
+                    meetingTitle: finalTitle,
                     messages: updatedMessages,
+                    summaryText: storedData?.summaryText ?? meetingInfo.summaryText,
+                    summaryLanguage: storedData?.summaryLanguage ?? meetingInfo.summaryLanguage,
+                    summaryUpdatedAt: storedData?.summaryUpdatedAt ?? meetingInfo.summaryUpdatedAt,
+                    notesText: storedData?.notesText ?? meetingInfo.notesText,
+                    notesUpdatedAt: storedData?.notesUpdatedAt ?? meetingInfo.notesUpdatedAt,
                     lastUpdated: new Date().toISOString(),
                     instanceId: instanceId  // 모든 새 데이터에 instanceId 추가
                 });
@@ -83,11 +143,18 @@ export class AutoMeetingLogData {
 
             getRequest.onerror = () => {
                 const filteredMessages = messages.filter(message => message.text && message.text.trim() !== '');
-                const putRequest = objectStore.put({ 
-                    ...meetingInfo, 
-                    messages: filteredMessages,
+                const updatedMessages = this.mergeCaptionMessages([], filteredMessages, options.replacePrefix);
+                const isGeneric = (t) => !t || t === 'Meet' || t === 'Google Meet' || t === 'Untitled Meeting';
+                let finalTitle = meetingInfo.meetingTitle;
+                if (isGeneric(finalTitle)) {
+                    finalTitle = meetingInfo.meetingId || 'Untitled Meeting';
+                }
+                const putRequest = objectStore.put({
+                    ...meetingInfo,
+                    meetingTitle: finalTitle,
+                    messages: updatedMessages,
                     lastUpdated: new Date().toISOString(),
-                    instanceId: instanceId  // 모든 새 데이터에 instanceId 추가
+                    instanceId: instanceId
                 });
 
                 putRequest.onerror = (event) => {

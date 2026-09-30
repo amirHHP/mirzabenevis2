@@ -26,9 +26,104 @@
 
         <section class="card">
             <h2 class="card-title" data-i18n="sectionMeetings">Auto Meeting Log</h2>
-            <button id="show-meetings-btn" class="btn btn-accent" type="button">
-                <span data-i18n="meetingLogs">Meeting Logs</span>
-            </button>
+            <div class="btn-row">
+                <button id="show-meetings-btn" class="btn btn-accent" type="button">
+                    <span data-i18n="meetingLogs">Meeting Logs</span>
+                </button>
+                <button id="backup-meetings-btn" class="btn btn-outline" type="button">
+                    <span data-i18n="backupMeetings">Backup All</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="card" id="pro-card">
+            <div class="pro-card-header">
+                <h2 class="card-title" data-i18n="sectionPro">Pro Account</h2>
+                <span id="pro-badge" class="pro-badge-free" data-i18n="proFreeBadge">Free</span>
+            </div>
+
+            <div id="pro-free-view">
+                <p class="field-hint" data-i18n="proHint">
+                    Upgrade to Pro to backup all meetings and unlock premium features.
+                </p>
+                <a id="buy-pro-link" class="btn btn-accent mb-2" href="https://mirzabenevis.com/pro" target="_blank" rel="noopener noreferrer" style="text-decoration: none; margin-bottom: 12px;">
+                    <span data-i18n="buyPro">Buy Pro License</span>
+                </a>
+                <div class="field">
+                    <label class="field-label" for="license-code-input" data-i18n="licenseCodeLabel">Activation Code</label>
+                    <input id="license-code-input" class="field-input font-code" type="text" autocomplete="off"
+                        placeholder="MBPRO-XXXX-XXXX-XXXX-XXXX" data-i18n-placeholder="licenseCodePlaceholder" spellcheck="false">
+                </div>
+                <button id="activate-license-btn" class="btn btn-primary" type="button">
+                    <span data-i18n="activatePro">Activate Pro</span>
+                </button>
+            </div>
+
+            <div id="pro-active-view" hidden>
+                <div class="pro-active-box">
+                    <div class="pro-status-line">
+                        <span class="pro-icon">⭐</span>
+                        <strong data-i18n="proActiveLabel">Pro Account Active</strong>
+                    </div>
+                    <p class="field-hint" style="margin-top: 6px; margin-bottom: 0;">
+                        <span data-i18n="licenseLabel">License:</span> <code id="pro-masked-key"></code>
+                    </p>
+                </div>
+                <div class="btn-row" style="margin-top: 12px;">
+                    <button id="pro-backup-btn" class="btn btn-accent" type="button">
+                        <span data-i18n="backupNow">Download Backup</span>
+                    </button>
+                    <button id="pro-deactivate-btn" class="btn btn-outline" type="button">
+                        <span data-i18n="deactivatePro">Deactivate</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="pro-action-status" class="status" aria-live="polite"></div>
+        </section>
+
+        <section class="card">
+            <h2 class="card-title" data-i18n="sectionCloud">Cloud Sync</h2>
+
+            <div id="cloud-status" class="field-hint cloud-status-line"></div>
+
+            <div id="cloud-login-view">
+                <div class="field">
+                    <label class="field-label" for="cloud-email" data-i18n="cloudEmailLabel">Email</label>
+                    <input id="cloud-email" class="field-input" type="email" autocomplete="off"
+                        placeholder="you@example.com" data-i18n-placeholder="cloudEmailPlaceholder">
+                </div>
+                <div class="field">
+                    <label class="field-label" for="cloud-password" data-i18n="cloudPasswordLabel">Password</label>
+                    <input id="cloud-password" class="field-input" type="password" autocomplete="off"
+                        placeholder="••••••••" data-i18n-placeholder="cloudPasswordPlaceholder">
+                    <p class="field-hint" data-i18n="cloudHint">
+                        Connect your account so meeting logs sync to the web app automatically.
+                    </p>
+                </div>
+                <div class="btn-row">
+                    <button id="cloud-login-btn" class="btn btn-primary" type="button">
+                        <span data-i18n="cloudLogin">Log in</span>
+                    </button>
+                    <button id="cloud-signup-btn" class="btn btn-outline" type="button">
+                        <span data-i18n="cloudSignup">Sign up</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="cloud-session-view" hidden>
+                <p class="cloud-user"><span id="cloud-user-email"></span></p>
+                <div class="btn-row">
+                    <button id="cloud-sync-btn" class="btn btn-accent" type="button">
+                        <span data-i18n="cloudSyncNow">Sync now</span>
+                    </button>
+                    <button id="cloud-logout-btn" class="btn btn-outline" type="button">
+                        <span data-i18n="cloudLogout">Log out</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="cloud-action-status" class="status" aria-live="polite"></div>
         </section>
 
         <section class="card">
@@ -58,7 +153,7 @@
         </section>
     </div>
 
-    <script src="options.js"></script>
+    <script src="options.js" type="module"></script>
 </body>
 
 </html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MirzaBenevis — Web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link href="web.css" rel="stylesheet">
+</head>
+
+<body>
+    <!-- ============ Auth view ============ -->
+    <div id="auth-view" class="auth-view" hidden>
+        <div class="auth-card">
+            <div class="auth-brand">
+                <img src="../images/128-mirzabenevis.png" alt="" class="auth-logo">
+                <h1 class="auth-title">MirzaBenevis</h1>
+                <p class="auth-subtitle" data-i18n="authSubtitle">Your Google Meet transcripts, everywhere.</p>
+            </div>
+
+            <div class="field">
+                <label class="field-label" for="auth-email" data-i18n="emailLabel">Email</label>
+                <input id="auth-email" class="field-input" type="email" autocomplete="username"
+                    placeholder="you@example.com" data-i18n-placeholder="emailPlaceholder">
+            </div>
+            <div class="field">
+                <label class="field-label" for="auth-password" data-i18n="passwordLabel">Password</label>
+                <input id="auth-password" class="field-input" type="password" autocomplete="current-password"
+                    placeholder="••••••••" data-i18n-placeholder="passwordHint">
+            </div>
+
+            <button id="login-btn" class="btn btn-primary btn-block" type="button" data-i18n="login">Log in</button>
+            <button id="signup-btn" class="btn btn-outline btn-block" type="button" data-i18n="signup">Sign up</button>
+            <div id="auth-status" class="status" aria-live="polite"></div>
+        </div>
+    </div>
+
+    <!-- ============ App view ============ -->
+    <div id="app-view" hidden>
+        <nav class="topbar">
+            <div class="topbar-inner">
+                <div class="brand">
+                    <img src="../images/128-mirzabenevis.png" alt="" class="brand-logo">
+                    <span class="brand-name">MirzaBenevis</span>
+                    <span class="brand-badge" data-i18n="webBadge">Web</span>
+                </div>
+                <div class="topbar-actions">
+                    <div class="lang-toggle" role="group" aria-label="Interface language">
+                        <button type="button" class="lang-btn active" data-lang="en">EN</button>
+                        <button type="button" class="lang-btn" data-lang="fa">FA</button>
+                    </div>
+                    <span id="user-email" class="user-email"></span>
+                    <button id="refresh-btn" class="btn btn-ghost btn-icon" type="button" title=""
+                        data-i18n-title="refreshTitle">&#x21bb;</button>
+                    <button id="logout-btn" class="btn btn-ghost" type="button" data-i18n="logout">Log out</button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="layout">
+            <!-- Meetings list -->
+            <aside class="list-pane">
+                <div class="search-wrap">
+                    <input id="search-input" class="search-input" type="search" placeholder="Search meetings…"
+                        data-i18n-placeholder="searchPlaceholder">
+                </div>
+                <div id="meetings-list" class="meetings-list" aria-live="polite"></div>
+            </aside>
+
+            <!-- Meeting detail -->
+            <section id="detail-pane" class="detail-pane">
+                <div id="empty-state" class="empty-state">
+                    <img src="../images/128-mirzabenevis.png" alt="" class="empty-logo">
+                    <p data-i18n="emptyState">Select a meeting to view its transcript.</p>
+                </div>
+
+                <div id="meeting-detail" class="meeting-detail" hidden>
+                    <header class="detail-header">
+                        <div class="detail-title-row">
+                            <h2 id="detail-title" class="detail-title" contenteditable="true"
+                                spellcheck="false"></h2>
+                            <span id="title-saved" class="save-indicator" aria-live="polite"></span>
+                        </div>
+                        <div id="detail-meta" class="detail-meta"></div>
+                        <div class="detail-actions">
+                            <button id="copy-btn" class="btn btn-outline btn-sm" type="button"
+                                data-i18n="copy">Copy</button>
+                            <button id="export-btn" class="btn btn-outline btn-sm" type="button"
+                                data-i18n="exportTxt">Export TXT</button>
+                            <button id="delete-btn" class="btn btn-danger btn-sm" type="button"
+                                data-i18n="delete">Delete</button>
+                        </div>
+                    </header>
+
+                    <div class="transcript-card">
+                        <div id="transcript" class="transcript"></div>
+                    </div>
+
+                    <section class="notes-card">
+                        <label class="notes-label" for="notes-editor" data-i18n="notesLabel">Notes</label>
+                        <textarea id="notes-editor" class="notes-editor" rows="6"
+                            placeholder="Write your notes here…" data-i18n-placeholder="notesPlaceholder"></textarea>
+                        <div class="notes-footer">
+                            <span id="notes-status" class="save-indicator" aria-live="polite"></span>
+                            <button id="save-notes-btn" class="btn btn-primary btn-sm" type="button"
+                                data-i18n="saveNotes">Save notes</button>
+                        </div>
+                    </section>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Delete confirmation -->
+    <dialog id="delete-dialog" class="dialog">
+        <h3 class="dialog-title" data-i18n="deleteMeeting">Delete meeting</h3>
+        <p id="delete-dialog-text" class="dialog-text"></p>
+        <p class="dialog-warning" data-i18n="deleteWarning">This deletes the meeting from the cloud and cannot be
+            undone.</p>
+        <div class="dialog-actions">
+            <button id="delete-cancel" class="btn btn-outline" type="button" data-i18n="cancel">Cancel</button>
+            <button id="delete-confirm" class="btn btn-danger" type="button" data-i18n="delete">Delete</button>
+        </div>
+    </dialog>
+
+    <script src="config.js"></script>
+    <script src="app.js" type="module"></script>
+</body>
+
+</html>

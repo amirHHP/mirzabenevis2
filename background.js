@@ -1,11 +1,17 @@
 import { AutoMeetingLogData as AutoMeetingLogData } from './modules/AutoMeetingLogData.js';
 import { DataRequestHandler } from './modules/DataRequestHandler.js';
 import { SyncInitializer } from './modules/SyncInitializer.js';
+import { CloudSyncManager } from './modules/CloudSyncManager.js';
+import { LicenseManager } from './modules/LicenseManager.js';
+import { BackupManager } from './modules/BackupManager.js';
 
 console.log("Background script initialized");
 
 const autoMeetingLogDB = new AutoMeetingLogData();
-const requestHandler = new DataRequestHandler(autoMeetingLogDB);
+const cloudSync = new CloudSyncManager();
+const licenseManager = new LicenseManager();
+const backupManager = new BackupManager(autoMeetingLogDB, licenseManager);
+const requestHandler = new DataRequestHandler(autoMeetingLogDB, cloudSync, licenseManager, backupManager);
 
 // Google Meet 페이지가 열릴 때 background script를 활성화
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
