@@ -60,25 +60,28 @@
 
     <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-describedby="deleteModalDescription" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteModalLabel">Delete Meeting</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content shadow-lg border-0" dir="rtl" style="border-radius: 14px; overflow: hidden;">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title d-flex align-items-center" id="deleteModalLabel">
+                        <i class="bi bi-trash3-fill ms-2" style="font-size: 1.2rem;"></i>
+                        <span>حذف جلسه</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="بستن"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body p-4" dir="rtl" style="text-align: right;">
                     <div class="meeting-info mb-3">
-                        <p class="mb-2"><strong>Meeting Title:</strong><br><span id="deleteMeetingTitle" class="text-break"></span></p>
-                        <p class="mb-0"><strong>Start Time:</strong><br><span id="deleteMeetingTime"></span></p>
+                        <p class="mb-2"><strong>عنوان جلسه:</strong><br><span id="deleteMeetingTitle" class="text-break"></span></p>
+                        <p class="mb-0"><strong>زمان شروع:</strong><br><span id="deleteMeetingTime"></span></p>
                     </div>
                     <div class="alert alert-warning mb-0" id="deleteModalDescription">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        This action cannot be undone.
+                        <i class="bi bi-exclamation-triangle-fill ms-2"></i>
+                        این عملیات غیرقابل بازگشت است و جلسه حذف خواهد شد.
                     </div>
                 </div>
-                <div class="modal-footer border-top-0">
-                    <button type="button" class="btn btn-link" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-secondary btn-sm px-4" data-bs-dismiss="modal">انصراف</button>
+                    <button type="button" class="btn btn-danger btn-sm px-4 fw-bold" id="confirmDelete">حذف جلسه</button>
                 </div>
             </div>
         </div>
@@ -87,17 +90,17 @@
     <!-- Pro Upgrade / Activation Modal -->
     <div class="modal fade" id="proModal" tabindex="-1" aria-labelledby="proModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content shadow-lg border-0" style="border-radius: 14px; overflow: hidden;">
-                <div class="modal-header bg-gradient text-white" style="background: linear-gradient(135deg, #350d36 0%, #5c1860 100%);">
+            <div class="modal-content shadow-lg border-0" dir="rtl" style="border-radius: 14px; overflow: hidden;">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #350d36 0%, #5c1860 100%);">
                     <h5 class="modal-title d-flex align-items-center" id="proModalLabel">
-                        <i class="bi bi-award-fill text-warning me-2" style="font-size: 1.4rem;"></i>
+                        <i class="bi bi-award-fill text-warning ms-2" style="font-size: 1.4rem;"></i>
                         <span>ارتقا به اکانت حرفه‌ای (Pro)</span>
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="بستن"></button>
                 </div>
-                <div class="modal-body p-4" style="direction: rtl; text-align: right;">
+                <div class="modal-body p-4" dir="rtl" style="text-align: right;">
                     <div class="alert alert-warning d-flex align-items-start mb-3" style="border-radius: 10px;">
-                        <i class="bi bi-shield-lock-fill text-warning fs-4 me-2 ms-2 flex-shrink-0"></i>
+                        <i class="bi bi-shield-lock-fill text-warning fs-4 ms-3 flex-shrink-0"></i>
                         <div>
                             <strong>قابلیت اختصاصی نسخه حرفه‌ای</strong>
                             <p class="mb-0 mt-1" style="font-size: 0.9rem;">
@@ -107,43 +110,57 @@
                     </div>
 
                     <div class="pro-features-list mb-3 p-3 bg-light rounded-3" style="font-size: 0.88rem;">
-                        <div class="fw-bold mb-2 text-dark"><i class="bi bi-stars text-warning me-1"></i> امکانات نسخه حرفه‌ای:</div>
-                        <ul class="list-unstyled mb-0 pe-2">
-                            <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-1"></i> تهیه پشتیبان کامل (JSON) از تمامی جلسات با یک کلیک</li>
-                            <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-1"></i> بازیابی سریع جلسات از روی فایل پشتیبان در هر زمان</li>
-                            <li class="mb-1"><i class="bi bi-check-circle-fill text-success me-1"></i> حفظ کامل متن مکالمات، خلاصه‌های هوش مصنوعی و یادداشت‌ها</li>
+                        <div class="fw-bold mb-2 text-dark d-flex align-items-center">
+                            <i class="bi bi-stars text-warning ms-2"></i>
+                            <span>امکانات نسخه حرفه‌ای:</span>
+                        </div>
+                        <ul class="list-unstyled mb-0 p-0">
+                            <li class="mb-2 d-flex align-items-center">
+                                <i class="bi bi-check-circle-fill text-success ms-2 flex-shrink-0"></i>
+                                <span>تهیه پشتیبان کامل (JSON) از تمامی جلسات با یک کلیک</span>
+                            </li>
+                            <li class="mb-2 d-flex align-items-center">
+                                <i class="bi bi-check-circle-fill text-success ms-2 flex-shrink-0"></i>
+                                <span>بازیابی سریع جلسات از روی فایل پشتیبان در هر زمان</span>
+                            </li>
+                            <li class="mb-1 d-flex align-items-center">
+                                <i class="bi bi-check-circle-fill text-success ms-2 flex-shrink-0"></i>
+                                <span>حفظ کامل متن مکالمات، خلاصه‌های هوش مصنوعی و یادداشت‌ها</span>
+                            </li>
                         </ul>
                     </div>
 
-                    <div class="card mb-3 border-primary border-opacity-25" style="border-radius: 10px;">
+                    <div class="card mb-3 border-0 bg-light rounded-3" style="border-right: 4px solid #0d6efd !important;">
                         <div class="card-body p-3">
-                            <h6 class="card-subtitle mb-2 text-primary fw-bold">
-                                <i class="bi bi-1-circle-fill me-1"></i> گام اول: خرید لایسنس
+                            <h6 class="card-subtitle mb-2 text-primary fw-bold d-flex align-items-center">
+                                <i class="bi bi-1-circle-fill ms-2"></i>
+                                <span>گام اول: خرید لایسنس</span>
                             </h6>
-                            <p class="card-text text-muted mb-2" style="font-size: 0.85rem;">
+                            <p class="card-text text-muted mb-3" style="font-size: 0.85rem; line-height: 1.6;">
                                 برای دریافت کد فعال‌سازی، لطفاً به سایت مراجعه کرده و لایسنس حرفه‌ای را تهیه کنید:
                             </p>
-                            <a id="proPurchaseLink" href="https://mirzabenevis.com/pro" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary w-100 fw-bold d-flex align-items-center justify-content-center">
-                                <i class="bi bi-box-arrow-up-right me-2 ms-2"></i>
-                                ورود به وب‌سایت و خرید کد فعال‌سازی
+                            <a id="proPurchaseLink" href="https://mirzabenevis.com/pro" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary w-100 fw-bold d-flex align-items-center justify-content-center py-2">
+                                <i class="bi bi-box-arrow-up-right ms-2"></i>
+                                <span>ورود به وب‌سایت و خرید کد فعال‌سازی</span>
                             </a>
                         </div>
                     </div>
 
-                    <div class="card border-success border-opacity-25" style="border-radius: 10px;">
+                    <div class="card border-0 bg-light rounded-3" style="border-right: 4px solid #198754 !important;">
                         <div class="card-body p-3">
-                            <h6 class="card-subtitle mb-2 text-success fw-bold">
-                                <i class="bi bi-2-circle-fill me-1"></i> گام دوم: ورود کد فعال‌سازی
+                            <h6 class="card-subtitle mb-2 text-success fw-bold d-flex align-items-center">
+                                <i class="bi bi-2-circle-fill ms-2"></i>
+                                <span>گام دوم: ورود کد فعال‌سازی</span>
                             </h6>
-                            <p class="card-text text-muted mb-2" style="font-size: 0.85rem;">
+                            <p class="card-text text-muted mb-3" style="font-size: 0.85rem; line-height: 1.6;">
                                 کد خریداری‌شده را در کادر زیر وارد کنید و دکمه فعال‌سازی را بزنید:
                             </p>
-                            <div class="input-group mb-2" style="direction: ltr;">
-                                <input type="text" id="proModalKeyInput" class="form-control font-monospace text-center" placeholder="MBPRO-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
+                            <div class="input-group mb-3">
+                                <input type="text" id="proModalKeyInput" class="form-control font-monospace text-center py-2" placeholder="MBPRO-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" dir="ltr">
                             </div>
-                            <button type="button" id="proModalActivateBtn" class="btn btn-success w-100 fw-bold">
-                                <i class="bi bi-patch-check-fill me-1 ms-1"></i>
-                                فعال‌سازی اکانت حرفه‌ای
+                            <button type="button" id="proModalActivateBtn" class="btn btn-success w-100 fw-bold d-flex align-items-center justify-content-center py-2">
+                                <i class="bi bi-patch-check-fill ms-2"></i>
+                                <span>فعال‌سازی اکانت حرفه‌ای</span>
                             </button>
                         </div>
                     </div>
@@ -151,7 +168,7 @@
                     <div id="proModalStatus" class="mt-3" style="display: none;" role="alert"></div>
                 </div>
                 <div class="modal-footer border-top-0 pt-0">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">انصراف</button>
+                    <button type="button" class="btn btn-secondary btn-sm px-4" data-bs-dismiss="modal">انصراف</button>
                 </div>
             </div>
         </div>
@@ -160,49 +177,51 @@
     <!-- Backup & Restore Modal -->
     <div class="modal fade" id="backupModal" tabindex="-1" aria-labelledby="backupModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content shadow-lg border-0" style="border-radius: 14px; overflow: hidden;">
-                <div class="modal-header bg-gradient text-white" style="background: linear-gradient(135deg, #1f3c88 0%, #2b580c 100%);">
+            <div class="modal-content shadow-lg border-0" dir="rtl" style="border-radius: 14px; overflow: hidden;">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #1f3c88 0%, #2b580c 100%);">
                     <h5 class="modal-title d-flex align-items-center" id="backupModalLabel">
-                        <i class="bi bi-cloud-arrow-down-fill me-2" style="font-size: 1.4rem;"></i>
+                        <i class="bi bi-cloud-arrow-down-fill text-warning ms-2" style="font-size: 1.4rem;"></i>
                         <span>پشتیبان‌گیری و بازیابی جلسات</span>
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="بستن"></button>
                 </div>
-                <div class="modal-body p-4" style="direction: rtl; text-align: right;">
+                <div class="modal-body p-4" dir="rtl" style="text-align: right;">
                     <div class="d-flex align-items-center justify-content-between mb-3 p-2 px-3 rounded-3 bg-light">
                         <span class="text-muted" style="font-size: 0.9rem;">وضعیت اشتراک:</span>
-                        <span class="badge bg-success" style="font-size: 0.85rem;"><i class="bi bi-patch-check-fill me-1"></i> اکانت حرفه‌ای فعال</span>
+                        <span class="badge bg-success" style="font-size: 0.85rem;"><i class="bi bi-patch-check-fill ms-1"></i> اکانت حرفه‌ای فعال</span>
                     </div>
 
                     <!-- Backup Section -->
-                    <div class="card mb-3 border-0 bg-light" style="border-radius: 10px;">
+                    <div class="card mb-3 border-0 bg-light rounded-3" style="border-right: 4px solid #0d6efd !important;">
                         <div class="card-body p-3">
-                            <h6 class="card-title fw-bold text-dark mb-1">
-                                <i class="bi bi-download text-primary me-1"></i> پشتیبان‌گیری از تمام جلسات
+                            <h6 class="card-title fw-bold text-dark mb-2 d-flex align-items-center">
+                                <i class="bi bi-download text-primary ms-2"></i>
+                                <span>پشتیبان‌گیری از تمام جلسات</span>
                             </h6>
-                            <p class="text-muted mb-2" style="font-size: 0.85rem;">
+                            <p class="text-muted mb-3" style="font-size: 0.85rem; line-height: 1.6;">
                                 تهیه فایل پشتیبان JSON شامل تمام جلسات (تعداد جلسات موجود: <strong id="backupMeetingCount" class="text-primary">-</strong> جلسه)
                             </p>
-                            <button type="button" id="doDownloadBackupBtn" class="btn btn-primary w-100 fw-bold">
-                                <i class="bi bi-cloud-arrow-down-fill me-1 ms-1"></i>
-                                دانلود فایل پشتیبان (JSON)
+                            <button type="button" id="doDownloadBackupBtn" class="btn btn-primary w-100 fw-bold d-flex align-items-center justify-content-center py-2">
+                                <i class="bi bi-cloud-arrow-down-fill ms-2"></i>
+                                <span>دانلود فایل پشتیبان (JSON)</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Restore Section -->
-                    <div class="card border-0 bg-light" style="border-radius: 10px;">
+                    <div class="card border-0 bg-light rounded-3" style="border-right: 4px solid #198754 !important;">
                         <div class="card-body p-3">
-                            <h6 class="card-title fw-bold text-dark mb-1">
-                                <i class="bi bi-upload text-success me-1"></i> بازیابی از فایل پشتیبان
+                            <h6 class="card-title fw-bold text-dark mb-2 d-flex align-items-center">
+                                <i class="bi bi-upload text-success ms-2"></i>
+                                <span>بازیابی از فایل پشتیبان</span>
                             </h6>
-                            <p class="text-muted mb-2" style="font-size: 0.85rem;">
-                                بارگذاری فایل پشتیبان JSON قبلی جهت اضافه شدن به جلسات:
+                            <p class="text-muted mb-3" style="font-size: 0.85rem; line-height: 1.6;">
+                                بارگذاری فایل پشتیبان JSON قبلی جهت اضافه شدن به جلسات موجود:
                             </p>
                             <input type="file" id="restoreFileInput" accept=".json" style="display: none;">
-                            <button type="button" id="doSelectRestoreBtn" class="btn btn-outline-success w-100 fw-bold">
-                                <i class="bi bi-folder2-open me-1 ms-1"></i>
-                                انتخاب فایل پشتیبان جهت بازیابی
+                            <button type="button" id="doSelectRestoreBtn" class="btn btn-outline-success w-100 fw-bold d-flex align-items-center justify-content-center py-2">
+                                <i class="bi bi-folder2-open ms-2"></i>
+                                <span>انتخاب فایل پشتیبان جهت بازیابی</span>
                             </button>
                         </div>
                     </div>
@@ -210,7 +229,7 @@
                     <div id="backupModalStatus" class="mt-3" style="display: none;" role="alert"></div>
                 </div>
                 <div class="modal-footer border-top-0 pt-0">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">بستن</button>
+                    <button type="button" class="btn btn-secondary btn-sm px-4" data-bs-dismiss="modal">بستن</button>
                 </div>
             </div>
         </div>
@@ -219,45 +238,45 @@
     <!-- Pro Account Info Modal -->
     <div class="modal fade" id="proInfoModal" tabindex="-1" aria-labelledby="proInfoModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content shadow-lg border-0" style="border-radius: 14px; overflow: hidden;">
-                <div class="modal-header bg-gradient text-white" style="background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);">
+            <div class="modal-content shadow-lg border-0" dir="rtl" style="border-radius: 14px; overflow: hidden;">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%);">
                     <h5 class="modal-title d-flex align-items-center" id="proInfoModalLabel">
-                        <i class="bi bi-patch-check-fill text-warning me-2" style="font-size: 1.4rem;"></i>
+                        <i class="bi bi-patch-check-fill text-warning ms-2" style="font-size: 1.4rem;"></i>
                         <span>اکانت حرفه‌ای میرزا بنویس</span>
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="بستن"></button>
                 </div>
-                <div class="modal-body p-4" style="direction: rtl; text-align: right;">
+                <div class="modal-body p-4" dir="rtl" style="text-align: right;">
                     <div class="text-center py-2 mb-3">
                         <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
                         <h5 class="fw-bold mt-2 mb-1">اکانت حرفه‌ای شما فعال است</h5>
-                        <p class="text-muted" style="font-size: 0.85rem;">تمامی امکانات ویژه از جمله پشتیبان‌گیری و بازیابی جلسات فعال هستند.</p>
+                        <p class="text-muted mb-0" style="font-size: 0.85rem;">تمامی امکانات ویژه از جمله پشتیبان‌گیری و بازیابی جلسات فعال هستند.</p>
                     </div>
 
-                    <div class="bg-light p-3 rounded-3 mb-3" style="font-size: 0.88rem;">
-                        <div class="d-flex justify-content-between mb-2">
+                    <div class="bg-light p-3 rounded-3 mb-3 border-0" style="font-size: 0.88rem; border-right: 4px solid #198754 !important;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
                             <span class="text-muted">کد لایسنس:</span>
-                            <code id="proInfoMaskedKey" class="fw-bold"></code>
+                            <code id="proInfoMaskedKey" class="fw-bold fs-6" style="direction: ltr;"></code>
                         </div>
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center">
                             <span class="text-muted">تاریخ فعال‌سازی:</span>
-                            <span id="proInfoDate" class="text-dark"></span>
+                            <span id="proInfoDate" class="text-dark fw-medium"></span>
                         </div>
                     </div>
 
-                    <button type="button" id="proInfoOpenBackupBtn" class="btn btn-primary w-100 fw-bold mb-2">
-                        <i class="bi bi-cloud-arrow-down-fill me-1 ms-1"></i>
-                        پشتیبان‌گیری و بازیابی جلسات
+                    <button type="button" id="proInfoOpenBackupBtn" class="btn btn-primary w-100 fw-bold mb-2 d-flex align-items-center justify-content-center py-2">
+                        <i class="bi bi-cloud-arrow-down-fill ms-2"></i>
+                        <span>پشتیبان‌گیری و بازیابی جلسات</span>
                     </button>
-                    <button type="button" id="proInfoDeactivateBtn" class="btn btn-outline-danger w-100 btn-sm">
-                        <i class="bi bi-x-circle me-1 ms-1"></i>
-                        غیرفعال‌سازی اکانت
+                    <button type="button" id="proInfoDeactivateBtn" class="btn btn-outline-danger w-100 btn-sm d-flex align-items-center justify-content-center py-2">
+                        <i class="bi bi-x-circle ms-2"></i>
+                        <span>غیرفعال‌سازی اکانت</span>
                     </button>
 
                     <div id="proInfoStatus" class="mt-2" style="display: none;" role="alert"></div>
                 </div>
                 <div class="modal-footer border-top-0 pt-0">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">بستن</button>
+                    <button type="button" class="btn btn-secondary btn-sm px-4" data-bs-dismiss="modal">بستن</button>
                 </div>
             </div>
         </div>

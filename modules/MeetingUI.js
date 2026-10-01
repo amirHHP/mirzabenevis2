@@ -404,7 +404,7 @@ export class MeetingUI {
                     return;
                 }
                 proModalActivateBtn.disabled = true;
-                proModalActivateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> در حال بررسی…';
+                proModalActivateBtn.innerHTML = '<span class="spinner-border spinner-border-sm ms-2" role="status"></span><span>در حال بررسی…</span>';
                 try {
                     const result = await this.licenseManager.activate(key);
                     if (result.success) {
@@ -424,7 +424,7 @@ export class MeetingUI {
                     showStatus(proModalStatus, 'خطا در فعال‌سازی: ' + error.message, 'danger');
                 } finally {
                     proModalActivateBtn.disabled = false;
-                    proModalActivateBtn.innerHTML = '<i class="bi bi-patch-check-fill me-1 ms-1"></i> فعال‌سازی اکانت حرفه‌ای';
+                    proModalActivateBtn.innerHTML = '<i class="bi bi-patch-check-fill ms-2"></i><span>فعال‌سازی اکانت حرفه‌ای</span>';
                 }
             });
         }
@@ -432,7 +432,7 @@ export class MeetingUI {
         if (doDownloadBackupBtn) {
             doDownloadBackupBtn.addEventListener('click', async () => {
                 doDownloadBackupBtn.disabled = true;
-                doDownloadBackupBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> در حال تهیه فایل پشتیبان…';
+                doDownloadBackupBtn.innerHTML = '<span class="spinner-border spinner-border-sm ms-2" role="status"></span><span>در حال تهیه فایل پشتیبان…</span>';
                 hideStatus(backupModalStatus);
                 try {
                     const backupRes = await this.backupManager.createBackup();
@@ -446,7 +446,7 @@ export class MeetingUI {
                     showStatus(backupModalStatus, 'خطا در تهیه نسخه پشتیبان: ' + error.message, 'danger');
                 } finally {
                     doDownloadBackupBtn.disabled = false;
-                    doDownloadBackupBtn.innerHTML = '<i class="bi bi-cloud-arrow-down-fill me-1 ms-1"></i> دانلود فایل پشتیبان (JSON)';
+                    doDownloadBackupBtn.innerHTML = '<i class="bi bi-cloud-arrow-down-fill ms-2"></i><span>دانلود فایل پشتیبان (JSON)</span>';
                 }
             });
         }
@@ -463,7 +463,7 @@ export class MeetingUI {
 
                 hideStatus(backupModalStatus);
                 doSelectRestoreBtn.disabled = true;
-                doSelectRestoreBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> در حال خواندن فایل…';
+                doSelectRestoreBtn.innerHTML = '<span class="spinner-border spinner-border-sm ms-2" role="status"></span><span>در حال خواندن فایل…</span>';
 
                 const reader = new FileReader();
                 reader.onload = async (e) => {
@@ -482,13 +482,13 @@ export class MeetingUI {
                         showStatus(backupModalStatus, 'خطا در بازیابی فایل: ' + msg, 'danger');
                     } finally {
                         doSelectRestoreBtn.disabled = false;
-                        doSelectRestoreBtn.innerHTML = '<i class="bi bi-folder2-open me-1 ms-1"></i> انتخاب فایل پشتیبان جهت بازیابی';
+                        doSelectRestoreBtn.innerHTML = '<i class="bi bi-folder2-open ms-2"></i><span>انتخاب فایل پشتیبان جهت بازیابی</span>';
                     }
                 };
                 reader.onerror = () => {
                     showStatus(backupModalStatus, 'خطا در خواندن فایل انتخاب شده.', 'danger');
                     doSelectRestoreBtn.disabled = false;
-                    doSelectRestoreBtn.innerHTML = '<i class="bi bi-folder2-open me-1 ms-1"></i> انتخاب فایل پشتیبان جهت بازیابی';
+                    doSelectRestoreBtn.innerHTML = '<i class="bi bi-folder2-open ms-2"></i><span>انتخاب فایل پشتیبان جهت بازیابی</span>';
                 };
                 reader.readAsText(file);
             });

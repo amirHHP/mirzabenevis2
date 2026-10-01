@@ -992,12 +992,88 @@ body.sidebar-resizing .sidebar-resizer {
     border-top: 1px solid rgba(29,28,29,.13);
 }
 
-/* Pro & Backup Modals */
-.modal-content {
-    font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+/* Modals (RTL) */
+.modal-content[dir="rtl"],
+.modal[dir="rtl"] .modal-content {
+    direction: rtl;
+    text-align: right;
+    font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
 }
 
-.modal .badge {
+.modal-content[dir="rtl"] .modal-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    direction: rtl;
+}
+
+.modal-content[dir="rtl"] .modal-header .modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    text-align: right;
+}
+
+.modal-content[dir="rtl"] .modal-header .btn-close {
+    margin: -0.5rem auto -0.5rem -0.5rem !important;
+}
+
+.modal-content[dir="rtl"] .modal-body {
+    direction: rtl;
+    text-align: right;
+}
+
+.modal-content[dir="rtl"] .modal-footer {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    direction: rtl;
+    gap: 8px;
+}
+
+.modal-content[dir="rtl"] .alert {
+    text-align: right;
+    direction: rtl;
+}
+
+.modal-content[dir="rtl"] .alert-warning {
+    border-left: none !important;
+    border-right: 4px solid #e8912d !important;
+}
+
+.modal-content[dir="rtl"] .alert-danger {
+    border-left: none !important;
+    border-right: 4px solid #dc3545 !important;
+}
+
+.modal-content[dir="rtl"] .alert-success {
+    border-left: none !important;
+    border-right: 4px solid #198754 !important;
+}
+
+.modal-content[dir="rtl"] .alert-info {
+    border-left: none !important;
+    border-right: 4px solid #0dcaf0 !important;
+}
+
+.modal-content[dir="rtl"] .btn i,
+.modal-content[dir="rtl"] .card-title i,
+.modal-content[dir="rtl"] .card-subtitle i,
+.modal-content[dir="rtl"] .pro-features-list i,
+.modal-content[dir="rtl"] .modal-title i,
+.modal-content[dir="rtl"] .alert i {
+    margin-left: 8px !important;
+    margin-right: 0 !important;
+}
+
+.modal-content[dir="rtl"] .badge i {
+    margin-left: 4px !important;
+    margin-right: 0 !important;
+}
+
+.modal-content[dir="rtl"] .badge {
     font-size: 0.8rem !important;
     padding: 0.35em 0.65em !important;
     font-weight: 500 !important;
@@ -1008,4 +1084,5 @@ body.sidebar-resizing .sidebar-resizer {
     align-items: center;
     gap: 6px;
     color: #495057;
+    text-align: right;
 }
