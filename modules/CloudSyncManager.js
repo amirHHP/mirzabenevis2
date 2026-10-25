@@ -13,6 +13,7 @@ const SUPABASE_ANON_KEY = 'YOUR-SUPABASE-ANON-KEY';
 const SESSION_KEY = 'cloudSession';
 const PENDING_KEY = 'cloudPendingSyncs';
 const LAST_SYNC_KEY = 'cloudLastSyncAt';
+export const PENDING_RETRY_ALARM = 'cloudPendingRetry';
 
 const TOKEN_REFRESH_MARGIN_SECONDS = 120;
 const PUSH_BATCH_SIZE = 10;
@@ -154,10 +155,36 @@ export class CloudSyncManager {
         );
     }
 
+    _userIdFromSession(session) {
+        if (session?.user?.id) return session.user.id;
+        const token = session?.access_token;
+        if (!token || typeof token !== 'string') return null;
+        const payload = token.split('.')[1];
+        if (!payload) return null;
+        try {
+            const padded = payload.replace(/-/g, '+').replace(/_/g, '/');
+            const json = JSON.parse(atob(padded));
+            return json.sub || null;
+        } catch {
+            return null;
+        }
+    }
+
+    async _getUserId() {
+        await this._getAccessToken();
+        const session = await this._loadSession();
+        const userId = this._userIdFromSession(session);
+        if (!userId) {
+            throw new Error('Cloud session has no user id.');
+        }
+        return userId;
+    }
+
     // ---------- push ----------
 
-    mapMeetingToRow(meeting) {
+    mapMeetingToRow(meeting, userId) {
         return {
+            user_id: userId,
             meeting_start_time: meeting.meetingStartTime,
             meeting_id: meeting.meetingId || null,
             meeting_title: meeting.meetingTitle || null,
@@ -178,10 +205,11 @@ export class CloudSyncManager {
             return 0;
         }
         const headers = await this._apiHeaders();
+        const userId = await this._getUserId();
         let pushed = 0;
 
         for (let i = 0; i < meetings.length; i += PUSH_BATCH_SIZE) {
-            const chunk = meetings.slice(i, i + PUSH_BATCH_SIZE).map((m) => this.mapMeetingToRow(m));
+            const chunk = meetings.slice(i, i + PUSH_BATCH_SIZE).map((m) => this.mapMeetingToRow(m, userId));
             const response = await fetch(
                 `${this.baseUrl}/rest/v1/meetings?on_conflict=user_id,meeting_start_time`,
                 {
@@ -251,8 +279,9 @@ export class CloudSyncManager {
                 return false;
             }
             const headers = await this._apiHeaders();
+            const userId = await this._getUserId();
             const response = await fetch(
-                `${this.baseUrl}/rest/v1/meetings?meeting_start_time=eq.${encodeURIComponent(meetingStartTime)}`,
+                `${this.baseUrl}/rest/v1/meetings?meeting_start_time=eq.${encodeURIComponent(meetingStartTime)}&user_id=eq.${encodeURIComponent(userId)}`,
                 { method: 'DELETE', headers: { ...headers, Prefer: 'return=minimal' } }
             );
             if (!response.ok && response.status !== 404) {
@@ -265,6 +294,26 @@ export class CloudSyncManager {
         }
     }
 
+    async retryPending(autoMeetingLogDB) {
+        if (!this.isConfigured()) return 0;
+        const session = await this._loadSession();
+        if (!session) return 0;
+
+        const result = await chrome.storage.local.get(PENDING_KEY);
+        const pending = [...(result[PENDING_KEY] || [])];
+        let synced = 0;
+        for (const startTime of pending) {
+            const ok = await this.syncMeeting(autoMeetingLogDB, startTime);
+            if (ok) synced += 1;
+        }
+        return synced;
+    }
+
+    async _schedulePendingRetry() {
+        if (!chrome?.alarms?.create) return;
+        await chrome.alarms.create(PENDING_RETRY_ALARM, { delayInMinutes: 1 });
+    }
+
     // ---------- pending queue ----------
 
     async _enqueuePending(meetingStartTime) {
@@ -272,6 +321,7 @@ export class CloudSyncManager {
         const pending = new Set(result[PENDING_KEY] || []);
         pending.add(meetingStartTime);
         await chrome.storage.local.set({ [PENDING_KEY]: [...pending] });
+        await this._schedulePendingRetry();
     }
 
     async _dequeuePending(startTimes) {

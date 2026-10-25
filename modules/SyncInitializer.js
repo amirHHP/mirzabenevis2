@@ -16,9 +16,13 @@ export class SyncInitializer {
         if (!hasInstanceId) {
             // 2. instanceId가 없으면 생성
             await this.instanceManager.createInstanceId();
-            
-            // 3. 기존 회의 데이터 마이그레이션
+        }
+
+        // 3. 기존 회의 데이터 마이그레이션 (로비/기본 제목 정리)
+        try {
             await this.migration.migrateAllMeetings();
+        } catch (error) {
+            console.warn("Migration error during sync initialization:", error);
         }
     }
 } 

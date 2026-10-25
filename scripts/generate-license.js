@@ -10,7 +10,7 @@
  *   node scripts/generate-license.js --seed="user@email.com" # Deterministic key for email
  */
 
-import { LicenseManager, MASTER_KEYS, DEFAULT_PURCHASE_URL } from '../modules/LicenseManager.js';
+import { LicenseManager, DEFAULT_PURCHASE_URL } from '../modules/LicenseManager.js';
 
 const manager = new LicenseManager();
 
@@ -47,7 +47,7 @@ Usage:
         if (result.valid) {
             console.log(`✅ Status: VALID`);
             console.log(`   Normalized: ${result.normalized}`);
-            console.log(`   Type: ${result.isMaster ? 'Master Promo Key' : 'Standard Cryptographic Key'}`);
+            console.log(`   Type: Standard key`);
             console.log(`   Masked: ${manager.maskKey(result.normalized)}`);
         } else {
             console.log(`❌ Status: INVALID`);
@@ -61,11 +61,7 @@ Usage:
     console.log('   MirzaBenevis — Pro License Key Generator');
     console.log('========================================================\n');
     console.log(`Purchase URL: ${DEFAULT_PURCHASE_URL}`);
-    console.log(`Master / Demo Keys (always valid):`);
-    for (const mk of MASTER_KEYS) {
-        console.log(`  ⭐ ${mk}`);
-    }
-    console.log('\nGenerated Cryptographic License Keys:');
+    console.log('\nGenerated license keys:');
 
     if (seed) {
         const key = await manager.generateKey(seed);

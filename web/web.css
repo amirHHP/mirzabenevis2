@@ -512,6 +512,8 @@ button {
     font-size: 14px;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
+    unicode-bidi: plaintext;
+    text-align: start;
 }
 
 .message.system .message-speaker {

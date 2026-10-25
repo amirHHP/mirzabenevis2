@@ -6,7 +6,8 @@
   "version": "2.0.0",
   "description": "Automatically turns on Google Meet captions and saves them.",
   "permissions": [
-    "storage"
+    "storage",
+    "alarms"
   ],
   "action": {
     "default_popup": "options.html",
@@ -24,13 +25,7 @@
   "content_scripts": [
     {
       "matches": ["https://meet.google.com/*"],
-      "js": ["content.js"]
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["meetings.html"],
-      "matches": ["<all_urls>"]
+      "js": ["modules/transcript-logic.js", "content.js"]
     }
   ],
   "icons": {
@@ -46,6 +41,6 @@
     "https://*.supabase.co/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
   }
 }

@@ -1,6 +1,233 @@
 import { InstanceManager } from './InstanceManager.js';
+import {
+    normalizeForComparison,
+    wordsMatch,
+    lcsWordMatchCount,
+    classifyTextRelationship,
+    mergeCaptionMessages,
+    deduplicateMeetingMessages,
+    mergeConsecutiveTexts,
+} from './TranscriptDeduplicator.js';
+
+export const LOBBY_TITLE_PHRASES = [
+    'ready to join',
+    'getting ready',
+    'joining',
+    'loading',
+    'asking to join',
+    'ask to join',
+    'checking your audio and video',
+    'check your audio and video',
+    'waiting for approval',
+    'waiting to be admitted',
+    'waiting for the host',
+    'someone will let you in soon',
+    'preparing',
+    'you can\'t join this call',
+    'this call has ended',
+    'return to home screen',
+    'meeting has ended',
+    'your meeting is ready',
+    'join now',
+    'join this video meeting',
+    'join video meeting',
+    'join this video call',
+    'join video call',
+    'join this meeting',
+    'join this call',
+    'join meeting',
+    'join a meeting',
+    'join call',
+    'join with google meet',
+    'join with meet',
+    'join audio',
+    'آماده پیوستن',
+    'آماده‌اید بپیوندید',
+    'آماده ملحق شدن',
+    'در حال پیوستن',
+    'در حال بارگذاری',
+    'در حال آماده‌سازی',
+    'درخواست برای پیوستن',
+    'درخواست پیوستن',
+    'درخواست ملحق شدن',
+    'درخواست ورود',
+    'در انتظار تأیید',
+    'در انتظار تایید',
+    'در انتظار ورود',
+    'منتظر بمانید',
+    'منتظر تأیید بمانید',
+    'منتظر تایید بمانید',
+    'بررسی صدا و تصویر',
+    'بررسی وضعیت صوتی و تصویری',
+    'جلسه شما آماده است',
+    'جلسه پایان یافته',
+    'پایان جلسه',
+    'پیوستن به این جلسه ویدیویی',
+    'پیوستن به جلسه ویدیویی',
+    'پیوستن به این جلسه ویدئویی',
+    'پیوستن به جلسه ویدئویی',
+    'پیوستن به این جلسه تصویری',
+    'پیوستن به جلسه تصویری',
+    'پیوستن به این جلسه',
+    'پیوستن به جلسه',
+    'پیوستن به این تماس',
+    'پیوستن به تماس',
+    'ورود به جلسه',
+    'ورود به این جلسه',
+    'ورود به جلسه ویدیویی',
+    'ورود به این جلسه ویدیویی',
+    'ورود به جلسه ویدئویی',
+    'ورود به این جلسه ویدئویی',
+    'ورود به جلسه تصویری',
+    'ورود به این جلسه تصویری',
+    'جلسه ویدیویی',
+    'جلسه ویدئویی',
+    'جلسه تصویری',
+    '참여 준비 완료',
+    '참여 중',
+    '로드 중',
+    '지금 참여',
+    '화상 회의 참여',
+    'مستعد للانضمام',
+    'جاهز للانضمام',
+    'جارٍ الانضمام',
+    'جارٍ التحميل',
+    'طلب الانضمام',
+    'انضمام الآن',
+    'الانضمام الآن',
+    'انضمام إلى اجتماع الفيديو',
+    'الانضمام إلى اجتماع فيديو',
+    'الانضمام إلى هذا الاجتماع',
+    'الانضمام إلى اجتماع',
+    'الانضمام إلى المكالمة'
+];
+
+const UI_CONTROL_PHRASES = [
+    'turn off microphone',
+    'turn on microphone',
+    'turn off camera',
+    'turn on camera',
+    'leave call',
+    'leave meeting',
+    'end call',
+    'raise hand',
+    'lower hand',
+    'more options',
+    'meeting details',
+    'chat with everyone',
+    'people',
+    'show everyone',
+    'activities',
+    'host controls',
+    'turn on captions',
+    'turn off captions',
+    'خاموش کردن میکروفون',
+    'روشن کردن میکروفون',
+    'خاموش کردن دوربین',
+    'روشن کردن دوربین',
+    'ترک تماس',
+    'خروج از تماس',
+    'پایان تماس',
+    'دست بلند کردن',
+    'گزینه‌های بیشتر',
+    'اطلاعات جلسه',
+    'جزئیات جلسه',
+    'افراد',
+    'چت',
+    'گفتگو',
+    'فعالیت‌ها',
+    'کنترل‌های میزبان',
+    'فعال‌سازی زیرنویس',
+    'خاموش کردن زیرنویس'
+];
+
+export function isLobbyOrGenericTitle(title, meetingId = '') {
+    if (!title || typeof title !== 'string') return true;
+    let t = title.trim();
+    if (!t) return true;
+
+    // Remove leading bidi control marks
+    t = t.replace(/^[\s\u200e\u200f\u202a-\u202e\u2066-\u2069]+/gu, '').trim();
+
+    // Remove notification counter prefix like (1), (2), (۱), (۲)
+    t = t.replace(/^\([\d\u0660-\u0669\u06F0-\u06F9]+\)\s*/u, '').trim();
+
+    // Remove prefixes/suffixes like "Meet - ", "Meet: ", " - Google Meet", "# Meet", "گوگل میت", "میت", etc.
+    t = t.replace(/^(?:Google\s+)?Meet\s*[-–—:|#]\s*/i, '').trim();
+    t = t.replace(/\s*[-–—:|#]\s*(?:Google\s+)?Meet$/i, '').trim();
+    t = t.replace(/^(?:گوگل\s+)?میت\s*[-–—:|#]\s*/iu, '').trim();
+    t = t.replace(/\s*[-–—:|#]\s*(?:گوگل\s+)?میت$/iu, '').trim();
+
+    // Strip leading/trailing punctuation, bidi control marks, hashes, bullets, etc.
+    const cleaned = t
+        .replace(/^[\s\u200e\u200f\u202a-\u202e\u2066-\u2069?!؟.\-_–—:|#()·•]+/gu, '')
+        .replace(/[\s\u200e\u200f\u202a-\u202e\u2066-\u2069?!؟.\-_–—:|#()·•]+$/gu, '')
+        .trim()
+        .toLowerCase();
+
+    if (!cleaned) return true;
+    if (
+        cleaned === 'meet' ||
+        cleaned === 'google meet' ||
+        cleaned === 'میت' ||
+        cleaned === 'گوگل میت' ||
+        cleaned === 'untitled' ||
+        cleaned === 'untitled meeting' ||
+        cleaned === 'بدون عنوان' ||
+        cleaned === 'جلسه بدون عنوان'
+    ) {
+        return true;
+    }
+    if (meetingId && (cleaned === meetingId.toLowerCase() || t === meetingId)) {
+        return true;
+    }
+    if (/^[a-z]{3}-[a-z]{4}-[a-z]{3}$/i.test(cleaned)) {
+        return true;
+    }
+
+    // Pure clock or time + meeting code (e.g. "12:30 PM | abc-defg-hij", "12:30 · abc-defg-hij", "۱۲:۳۰ | abc-defg-hij", "10:15")
+    if (/^[\d\u0660-\u0669\u06F0-\u06F9]{1,2}:[\d\u0660-\u0669\u06F0-\u06F9]{2}(?::[\d\u0660-\u0669\u06F0-\u06F9]{2})?\s*(?:am|pm|ق\.?ظ|ب\.?ظ|ق\u200cظ|ب\u200cظ)?(?:\s*[-–—|·•]\s*[a-z]{3}-[a-z]{4}-[a-z]{3})?$/iu.test(cleaned)) {
+        return true;
+    }
+
+    // Check UI control labels/tooltips
+    if (UI_CONTROL_PHRASES.some(phrase => cleaned === phrase || cleaned.startsWith(phrase))) {
+        return true;
+    }
+
+    // Check lobby phrases with word boundary / punctuation match
+    return LOBBY_TITLE_PHRASES.some(phrase => {
+        if (cleaned === phrase) return true;
+        if (cleaned.startsWith(phrase + ' ') || cleaned.startsWith(phrase + '...') || cleaned.startsWith(phrase + '?') || cleaned.startsWith(phrase + '؟')) {
+            return true;
+        }
+        if (cleaned.endsWith(' ' + phrase) || cleaned.endsWith('...' + phrase)) {
+            return true;
+        }
+        return false;
+    });
+}
+
+export {
+    normalizeForComparison,
+    wordsMatch,
+    lcsWordMatchCount,
+    classifyTextRelationship,
+    mergeCaptionMessages,
+    deduplicateMeetingMessages,
+    mergeConsecutiveTexts,
+};
 
 export class AutoMeetingLogData {
+    static isLobbyOrGenericTitle = isLobbyOrGenericTitle;
+    static normalizeForComparison = normalizeForComparison;
+    static wordsMatch = wordsMatch;
+    static lcsWordMatchCount = lcsWordMatchCount;
+    static classifyTextRelationship = classifyTextRelationship;
+    static mergeCaptionMessages = mergeCaptionMessages;
+    static deduplicateMeetingMessages = deduplicateMeetingMessages;
+    static mergeConsecutiveTexts = mergeConsecutiveTexts;
+
     constructor() {
         this.dbName = 'AutoMeetingLogDB';
         this.dbVersion = 1;
@@ -32,45 +259,28 @@ export class AutoMeetingLogData {
         });
     }
 
-    mergeCaptionMessages(existingMessages, incomingMessages, replacePrefix = false) {
-        let messages = existingMessages ? [...existingMessages] : [];
+    normalizeForComparison(text) {
+        return normalizeForComparison(text);
+    }
 
-        incomingMessages.forEach((incoming) => {
-            const newText = (incoming.text || '').trim();
-            if (!newText) {
-                return;
-            }
+    wordsMatch(w1, w2) {
+        return wordsMatch(w1, w2);
+    }
 
-            if (replacePrefix) {
-                while (messages.length > 0) {
-                    const last = messages[messages.length - 1];
-                    if (last.actorIndex !== incoming.actorIndex || last.type !== 'caption') {
-                        break;
-                    }
+    lcsWordMatchCount(wordsA, wordsB) {
+        return lcsWordMatchCount(wordsA, wordsB);
+    }
 
-                    const lastText = (last.text || '').trim();
-                    if (newText.startsWith(lastText)) {
-                        messages.pop();
-                        continue;
-                    }
-                    break;
-                }
-            }
+    classifyTextRelationship(olderText, newerText) {
+        return classifyTextRelationship(olderText, newerText);
+    }
 
-            const last = messages[messages.length - 1];
-            if (
-                last &&
-                last.actorIndex === incoming.actorIndex &&
-                last.type === 'caption' &&
-                (last.text || '').trim() === newText
-            ) {
-                return;
-            }
+    deduplicateMeetingMessages(messages, windowMs = 30000) {
+        return deduplicateMeetingMessages(messages, windowMs);
+    }
 
-            messages.push(incoming);
-        });
-
-        return messages;
+    mergeCaptionMessages(existingMessages, incomingMessages, replacePrefix = false, windowMs = 30000) {
+        return mergeCaptionMessages(existingMessages, incomingMessages, replacePrefix, windowMs);
     }
 
     async saveMeeting(meetingInfo, messages, options = {}) {
@@ -107,14 +317,13 @@ export class AutoMeetingLogData {
                     options.replacePrefix
                 );
 
-                const isGeneric = (t) => !t || t === 'Meet' || t === 'Google Meet' || t === 'Untitled Meeting';
                 let finalTitle = meetingInfo.meetingTitle;
-                if (storedData?.meetingTitle && !isGeneric(storedData.meetingTitle)) {
-                    if (isGeneric(finalTitle) || finalTitle === meetingInfo.meetingId) {
+                if (storedData?.meetingTitle && !isLobbyOrGenericTitle(storedData.meetingTitle, meetingInfo.meetingId)) {
+                    if (isLobbyOrGenericTitle(finalTitle, meetingInfo.meetingId) || finalTitle === meetingInfo.meetingId) {
                         finalTitle = storedData.meetingTitle;
                     }
-                } else if (isGeneric(finalTitle)) {
-                    finalTitle = meetingInfo.meetingId || 'Untitled Meeting';
+                } else if (isLobbyOrGenericTitle(finalTitle, meetingInfo.meetingId)) {
+                    finalTitle = storedData?.aiTitle || storedData?.generatedTitle || meetingInfo.aiTitle || meetingInfo.generatedTitle || meetingInfo.meetingId || 'Untitled Meeting';
                 }
 
                 const putRequest = objectStore.put({ 
@@ -144,10 +353,9 @@ export class AutoMeetingLogData {
             getRequest.onerror = () => {
                 const filteredMessages = messages.filter(message => message.text && message.text.trim() !== '');
                 const updatedMessages = this.mergeCaptionMessages([], filteredMessages, options.replacePrefix);
-                const isGeneric = (t) => !t || t === 'Meet' || t === 'Google Meet' || t === 'Untitled Meeting';
                 let finalTitle = meetingInfo.meetingTitle;
-                if (isGeneric(finalTitle)) {
-                    finalTitle = meetingInfo.meetingId || 'Untitled Meeting';
+                if (isLobbyOrGenericTitle(finalTitle, meetingInfo.meetingId)) {
+                    finalTitle = meetingInfo.aiTitle || meetingInfo.generatedTitle || meetingInfo.meetingId || 'Untitled Meeting';
                 }
                 const putRequest = objectStore.put({
                     ...meetingInfo,
@@ -171,57 +379,13 @@ export class AutoMeetingLogData {
 
     async getAllMeetings() {
         const db = await this.open();
-        return new Promise(async (resolve, reject) => {
-            const transaction = db.transaction(['meetings'], 'readwrite');
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(['meetings'], 'readonly');
             const objectStore = transaction.objectStore('meetings');
             const request = objectStore.getAll();
 
-            request.onsuccess = async (event) => {
-                let meetings = event.target.result;
-                
-                // instanceId가 없는 회의 데이터 확인 및 자동 수정
-                const meetingsNeedingInstanceId = meetings.filter(meeting => !meeting.instanceId);
-                
-                if (meetingsNeedingInstanceId.length > 0) {
-                    console.log(`Found ${meetingsNeedingInstanceId.length} meetings without instanceId, fixing...`);
-                    
-                    // instanceId 가져오기 (없으면 생성)
-                    let instanceId = await this.instanceManager.getInstanceId();
-                    if (!instanceId) {
-                        instanceId = await this.instanceManager.createInstanceId();
-                    }
-                    
-                    // instanceId가 없는 회의들에 instanceId 추가
-                    const updateTransaction = db.transaction(['meetings'], 'readwrite');
-                    const updateObjectStore = updateTransaction.objectStore('meetings');
-                    
-                    for (const meeting of meetingsNeedingInstanceId) {
-                        const updatedMeeting = {
-                            ...meeting,
-                            instanceId: instanceId,
-                            migratedAt: new Date().toISOString()
-                        };
-                        updateObjectStore.put(updatedMeeting);
-                        
-                        // 메모리상의 데이터도 업데이트
-                        const index = meetings.findIndex(m => m.meetingStartTime === meeting.meetingStartTime);
-                        if (index !== -1) {
-                            meetings[index] = updatedMeeting;
-                        }
-                    }
-                    
-                    updateTransaction.oncomplete = () => {
-                        console.log(`Successfully added instanceId to ${meetingsNeedingInstanceId.length} meetings`);
-                        resolve(meetings);
-                    };
-                    
-                    updateTransaction.onerror = (event) => {
-                        console.error('Error updating meetings with instanceId:', event.target.error);
-                        resolve(meetings); // 업데이트 실패해도 기존 데이터는 반환
-                    };
-                } else {
-                    resolve(meetings);
-                }
+            request.onsuccess = (event) => {
+                resolve(event.target.result || []);
             };
 
             request.onerror = () => {
@@ -277,7 +441,14 @@ export class AutoMeetingLogData {
         });
     }
 
-    async updateMeetingTitle(meetingStartTime, newTitle) {
+    async updateMeetingTitle(meetingStartTime, newTitle, meetingId = null) {
+        if (!meetingStartTime || !newTitle) {
+            return false;
+        }
+        let instanceId = await this.instanceManager.getInstanceId();
+        if (!instanceId) {
+            instanceId = await this.instanceManager.createInstanceId();
+        }
         const db = await this.open();
         return new Promise((resolve, reject) => {
             const transaction = db.transaction(['meetings'], 'readwrite');
@@ -286,16 +457,36 @@ export class AutoMeetingLogData {
 
             request.onsuccess = (event) => {
                 const meeting = event.target.result;
-                if (!meeting) {
-                    resolve(false);
-                    return;
+                const mId = meeting?.meetingId || meetingId;
+                let finalTitle = newTitle;
+                if (meeting?.meetingTitle && !isLobbyOrGenericTitle(meeting.meetingTitle, mId)) {
+                    if (isLobbyOrGenericTitle(finalTitle, mId) || finalTitle === mId) {
+                        finalTitle = meeting.meetingTitle;
+                    }
+                } else if (isLobbyOrGenericTitle(finalTitle, mId)) {
+                    finalTitle = meeting?.aiTitle || meeting?.generatedTitle || mId || 'Untitled Meeting';
                 }
 
-                const updatedMeeting = {
-                    ...meeting,
-                    meetingTitle: newTitle,
-                    lastUpdated: new Date().toISOString()
-                };
+                let updatedMeeting;
+                if (!meeting) {
+                    updatedMeeting = {
+                        meetingStartTime,
+                        meetingId: meetingId || '',
+                        meetingTitle: finalTitle,
+                        participants: [],
+                        messages: [],
+                        instanceId,
+                        lastUpdated: new Date().toISOString()
+                    };
+                } else {
+                    updatedMeeting = {
+                        ...meeting,
+                        meetingTitle: finalTitle,
+                        ...(meetingId && !meeting.meetingId ? { meetingId } : {}),
+                        instanceId: meeting.instanceId || instanceId,
+                        lastUpdated: new Date().toISOString()
+                    };
+                }
 
                 const updateRequest = objectStore.put(updatedMeeting);
 

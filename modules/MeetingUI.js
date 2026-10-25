@@ -1,7 +1,36 @@
 import { LicenseManager } from './LicenseManager.js';
 import { BackupManager } from './BackupManager.js';
+import { deduplicateMeetingMessages, mergeConsecutiveTexts } from './TranscriptDeduplicator.js';
+import { isLobbyOrGenericTitle } from './AutoMeetingLogData.js';
+
+function safeSendMessage(message) {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+            const res = chrome.runtime.sendMessage(message, () => {
+                void chrome.runtime?.lastError;
+            });
+            if (res && typeof res.catch === 'function') {
+                res.catch(() => {});
+            }
+        }
+    } catch (_) {}
+}
 
 export class MeetingUI {
+    static QUOTA_EXCEEDED_MESSAGE =
+        'سهمیه روزانه کلید Gemini شما به پایان رسیده است. لطفاً فردا مجدداً تلاش کنید یا از کلید دیگری استفاده نمایید';
+
+    isQuotaExceededError(error) {
+        if (!error) return false;
+        if (error.status === 429 || Number(error.status) === 429) return true;
+        const msg = String(error.message || error);
+        return (
+            msg.includes('429') ||
+            msg.includes('RESOURCE_EXHAUSTED') ||
+            msg.toLowerCase().includes('quota')
+        );
+    }
+
     constructor(autoMeetingLogDB) {
         this.autoMeetingLogDB = autoMeetingLogDB;
         this.selectedMeetingStartTime = null;
@@ -20,22 +49,14 @@ export class MeetingUI {
 
     getDisplayTitle(meeting) {
         const title = meeting?.meetingTitle;
-        if (title && title !== 'Meet' && title !== 'Google Meet' && title !== 'Untitled Meeting' && title !== '(Untitled)') {
+        if (title && !this.isGenericTitle(title, meeting?.meetingId)) {
             return title;
         }
-        return meeting?.meetingId || 'Untitled Meeting';
+        return meeting?.aiTitle || meeting?.generatedTitle || meeting?.meetingId || 'Untitled Meeting';
     }
 
     isGenericTitle(title, meetingId) {
-        if (!title) return true;
-        const t = title.trim();
-        return (
-            t === 'Meet' ||
-            t === 'Google Meet' ||
-            t === 'Untitled Meeting' ||
-            t === '(Untitled)' ||
-            t === meetingId
-        );
+        return isLobbyOrGenericTitle(title, meetingId);
     }
 
     initializeDeleteModal() {
@@ -43,11 +64,13 @@ export class MeetingUI {
         const confirmButton = document.getElementById('confirmDelete');
         
         // Bootstrap 5 Modal 인스턴스 생성
-        this.deleteModal = new bootstrap.Modal(modal, {
-            keyboard: true,
-            backdrop: 'static',  // 배경 클릭으로 닫히지 않도록 설정
-            focus: true          // 모달이 열릴 때 포커스 관리 활성화
-        });
+        if (modal && typeof bootstrap !== 'undefined') {
+            this.deleteModal = new bootstrap.Modal(modal, {
+                keyboard: true,
+                backdrop: 'static',  // 배경 클릭으로 닫히지 않도록 설정
+                focus: true          // 모달이 열릴 때 포کر스 관리 활성화
+            });
+        }
         
         if (confirmButton) {
             confirmButton.addEventListener('click', async () => {
@@ -57,7 +80,7 @@ export class MeetingUI {
                         await this.autoMeetingLogDB.deleteMeeting(deletedStartTime);
 
                         // Keep the cloud copy in sync (fire-and-forget)
-                        chrome.runtime.sendMessage({ type: 'cloud.deleteMeeting', meetingStartTime: deletedStartTime }).catch(() => {});
+                        safeSendMessage({ type: 'cloud.deleteMeeting', meetingStartTime: deletedStartTime });
                         
                         // 삭제된 항목 찾기
                         const deletedItem = document.querySelector(`[data-starttime="${this.selectedMeetingStartTime}"]`);
@@ -170,13 +193,23 @@ export class MeetingUI {
         return new Date(time).toLocaleString(undefined, { timeZone: "Asia/Seoul", ...option });
     }
 
+    deduplicateMessages(messages, windowMs = 30000) {
+        return deduplicateMeetingMessages(messages, windowMs);
+    }
+
     convert(input) {
+        if (!input) return input;
         let output;
 
         if (!input.captions) {
-            output = input;
+            output = {
+                ...input,
+                participants: Array.isArray(input.participants) ? [...input.participants] : [],
+                messages: Array.isArray(input.messages) ? [...input.messages] : [],
+            };
         } else {
             output = {
+                ...input,
                 meetingId: input.meetingId,
                 meetingTitle: input.meetingTitle,
                 meetingStartTime: input.meetingStartTime,
@@ -187,13 +220,13 @@ export class MeetingUI {
             // Extract participants and messages from captions
             input.captions.forEach((caption) => {
                 // Check if participant already exists in participants array
-                let participantIndex = output.participants.findIndex((p) => p.name === caption.speaker.name);
+                let participantIndex = output.participants.findIndex((p) => p.name === caption?.speaker?.name);
 
                 // If participant doesn't exist, add them to the array
                 if (participantIndex === -1) {
                     output.participants.push({
-                        name: caption.speaker.name,
-                        imageUrl: caption.speaker.imageUrl,
+                        name: caption?.speaker?.name || 'Unknown',
+                        imageUrl: caption?.speaker?.imageUrl || '',
                     });
                     participantIndex = output.participants.length - 1; // Update participant index
                 }
@@ -207,6 +240,11 @@ export class MeetingUI {
                 });
             });
         }
+
+        // Self-healing deduplication pass:
+        // Cleans fragmented, stuttered, and duplicated captions on the fly
+        // without mutating or corrupting the original stored meeting record.
+        output.messages = this.deduplicateMessages(output.messages);
 
         return output;
     }
@@ -233,7 +271,12 @@ export class MeetingUI {
                 second: '2-digit',
                 hour12: false
             });
-            return `[${time}] ${speakerName}: ${msg.text}`;
+            const text = msg.text || '';
+            const hasRtl = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text);
+            const startsWithNonRtl = /^[\d\u0660-\u0669\u06F0-\u06F9\s\p{P}\p{S}]/u.test(text.trim());
+            const needsRlm = hasRtl && startsWithNonRtl && !text.startsWith('\u200F');
+            const formattedText = needsRlm ? `\u200F${text}` : text;
+            return `[${time}] ${speakerName}: ${formattedText}`;
         });
 
         return [...headerLines, ...lines].join('\n');
@@ -736,20 +779,32 @@ export class MeetingUI {
     }
 
     async getGeminiApiKey() {
-        return new Promise((resolve) => {
+        const read = (area, keys) => new Promise((resolve) => {
             try {
-                if (!chrome || !chrome.storage || !chrome.storage.sync) {
-                    resolve(null);
+                if (!chrome?.storage?.[area]) {
+                    resolve({});
                     return;
                 }
-                chrome.storage.sync.get(['geminiApiKey'], (result) => {
-                    resolve(result.geminiApiKey || null);
-                });
+                chrome.storage[area].get(keys, (result) => resolve(result || {}));
             } catch (error) {
-                console.error('Error getting Gemini API key:', error);
-                resolve(null);
+                console.error('Error reading Gemini settings:', error);
+                resolve({});
             }
         });
+
+        const local = await read('local', ['geminiApiKey']);
+        if (local.geminiApiKey) return local.geminiApiKey;
+
+        const sync = await read('sync', ['geminiApiKey']);
+        if (!sync.geminiApiKey) return null;
+
+        try {
+            await new Promise((resolve) => chrome.storage.local.set({ geminiApiKey: sync.geminiApiKey }, resolve));
+            await new Promise((resolve) => chrome.storage.sync.remove('geminiApiKey', resolve));
+        } catch (error) {
+            console.error('Error moving Gemini API key to local storage:', error);
+        }
+        return sync.geminiApiKey;
     }
 
     async getGeminiLanguagePreference() {
@@ -772,6 +827,48 @@ export class MeetingUI {
                 resolve('en');
             }
         });
+    }
+
+    static SUMMARY_CHUNK_CHARS = 12000;
+    static SUMMARY_MAX_CHARS = 96000;
+
+    splitTranscript(text, maxChars = MeetingUI.SUMMARY_CHUNK_CHARS) {
+        const source = text || '';
+        if (!source) return [];
+        if (source.length <= maxChars) return [source];
+
+        const chunks = [];
+        let rest = source;
+        while (rest.length > maxChars) {
+            let cut = rest.lastIndexOf('\n', maxChars);
+            if (cut < maxChars * 0.5) cut = maxChars;
+            chunks.push(rest.slice(0, cut));
+            rest = rest.slice(cut).trimStart();
+        }
+        if (rest) chunks.push(rest);
+        return chunks;
+    }
+
+    async summarizeTranscript(apiKey, text, language) {
+        const capped = (text || '').slice(0, MeetingUI.SUMMARY_MAX_CHARS);
+        let pieces = this.splitTranscript(capped);
+        if (pieces.length === 0) {
+            return this.callGeminiSummarize(apiKey, '', language);
+        }
+
+        for (let round = 0; pieces.length > 1 && round < 4; round++) {
+            const partials = [];
+            for (const piece of pieces) {
+                partials.push(await this.callGeminiSummarize(apiKey, piece, language));
+            }
+            pieces = this.splitTranscript(partials.join('\n\n'));
+        }
+
+        return this.callGeminiSummarize(
+            apiKey,
+            pieces.join('\n\n').slice(0, MeetingUI.SUMMARY_CHUNK_CHARS),
+            language
+        );
     }
 
     buildSummaryPrompt(text, language) {
@@ -829,14 +926,15 @@ export class MeetingUI {
     }
 
     async callGeminiSummarize(apiKey, text, language) {
-        const endpoint =
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent' +
-            `?key=${encodeURIComponent(apiKey)}`;
+        const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
         const prompt = this.buildSummaryPrompt(text, language);
 
         const response = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey,
+            },
             body: JSON.stringify({
                 contents: [
                     {
@@ -851,7 +949,9 @@ export class MeetingUI {
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Gemini API error: ${response.status} ${errorText}`);
+            const error = new Error(`Gemini API error: ${response.status} ${errorText}`);
+            error.status = response.status;
+            throw error;
         }
 
         const data = await response.json();
@@ -1019,7 +1119,7 @@ export class MeetingUI {
 
         try {
             const text = this.generateMeetingPlainText(meeting);
-            const summary = await this.callGeminiSummarize(apiKey, text, language);
+            const summary = await this.summarizeTranscript(apiKey, text, language);
             this.showSummary(summary, language);
             try {
                 await this.autoMeetingLogDB.updateMeetingSummary(
@@ -1031,30 +1131,14 @@ export class MeetingUI {
                 console.error('Failed to save summary to meeting record:', saveError);
             }
 
-            // Auto-generate title if current title is generic
-            if (this.isGenericTitle(meeting.meetingTitle, meeting.meetingId)) {
-                try {
-                    const autoTitle = await this.callGeminiGenerateTitle(apiKey, text, language);
-                    if (autoTitle) {
-                        await this.autoMeetingLogDB.updateMeetingTitle(meeting.meetingStartTime, autoTitle);
-                        meeting.meetingTitle = autoTitle;
-                        const headerEl = document.querySelector('.meeting-title-header');
-                        if (headerEl && headerEl.childNodes[0]) {
-                            headerEl.childNodes[0].textContent = autoTitle + ' ';
-                        }
-                        this.loadMeetingList();
-                        chrome.runtime.sendMessage({
-                            type: 'cloud.syncMeeting',
-                            meetingStartTime: meeting.meetingStartTime
-                        }).catch(() => {});
-                    }
-                } catch (titleError) {
-                    console.warn('Auto title during summarization skipped:', titleError);
-                }
-            }
         } catch (error) {
-            console.error('Failed to summarize meeting:', error);
-            alert('Failed to summarize meeting: ' + (error.message || 'Unknown error'));
+            if (this.isQuotaExceededError(error)) {
+                console.warn('Gemini quota exceeded (429):', error.message || error);
+                alert(MeetingUI.QUOTA_EXCEEDED_MESSAGE);
+            } else {
+                console.error('Failed to summarize meeting:', error);
+                alert('Failed to summarize meeting: ' + (error.message || 'Unknown error'));
+            }
         } finally {
             if (buttonElement) {
                 buttonElement.disabled = false;
@@ -1064,9 +1148,7 @@ export class MeetingUI {
     }
 
     async callGeminiGenerateTitle(apiKey, text, language) {
-        const endpoint =
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent' +
-            `?key=${encodeURIComponent(apiKey)}`;
+        const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
         const languageName = language === 'fa' ? 'Persian (Farsi)' : 'English';
         const prompt =
             `You are an expert meeting assistant. Based on the following meeting transcript, generate a short, professional, and descriptive meeting title (3 to 6 words maximum) in ${languageName}. ` +
@@ -1076,7 +1158,10 @@ export class MeetingUI {
 
         const response = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey,
+            },
             body: JSON.stringify({
                 contents: [
                     {
@@ -1088,7 +1173,9 @@ export class MeetingUI {
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Gemini API error: ${response.status} ${errorText}`);
+            const error = new Error(`Gemini API error: ${response.status} ${errorText}`);
+            error.status = response.status;
+            throw error;
         }
 
         const data = await response.json();
@@ -1124,8 +1211,9 @@ export class MeetingUI {
         }
 
         try {
-            const text = this.generateMeetingPlainText(meeting);
-            if (!text || !meeting.messages || meeting.messages.length === 0) {
+            const convertedMeeting = this.convert(meeting);
+            const text = this.generateMeetingPlainText(convertedMeeting);
+            if (!text || !convertedMeeting.messages || convertedMeeting.messages.length === 0) {
                 alert('This meeting has no transcript/captions to generate a title from.');
                 return;
             }
@@ -1138,27 +1226,38 @@ export class MeetingUI {
 
             if (updated) {
                 meeting.meetingTitle = title;
-                const headerEl = document.querySelector('.meeting-title-header');
-                if (headerEl && headerEl.childNodes[0]) {
-                    headerEl.childNodes[0].textContent = title + ' ';
+                const titleText = document.querySelector('.meeting-title-text');
+                if (titleText) {
+                    titleText.textContent = title;
                 }
                 this.loadMeetingList();
-                chrome.runtime.sendMessage({
+                safeSendMessage({
                     type: 'cloud.syncMeeting',
                     meetingStartTime: meeting.meetingStartTime
-                }).catch(() => {});
+                });
             } else {
                 alert('Failed to update meeting title.');
             }
         } catch (error) {
-            console.error('Failed to generate meeting title:', error);
-            alert('Failed to generate title: ' + (error.message || 'Unknown error'));
+            if (this.isQuotaExceededError(error)) {
+                console.warn('Gemini quota exceeded (429):', error.message || error);
+                alert(MeetingUI.QUOTA_EXCEEDED_MESSAGE);
+            } else {
+                console.error('Failed to generate meeting title:', error);
+                alert('Failed to generate title: ' + (error.message || 'Unknown error'));
+            }
         } finally {
             if (buttonElement) {
                 buttonElement.disabled = false;
                 buttonElement.innerHTML = originalHtml;
             }
         }
+    }
+
+    async trySilentAutoTitle(convertedMeeting, buttonElement = null) {
+        // Disabled: Background silent auto-titling is disabled to avoid Gemini quota exhaustion.
+        // AI meeting titling is strictly triggered on-demand by the user via the "Auto Title" button.
+        return;
     }
 
     async reloadSelectedMeeting(meetings) {
@@ -1369,6 +1468,7 @@ export class MeetingUI {
 
         const textContainer = document.createElement("div");
         textContainer.className = "text-container";
+        textContainer.setAttribute("dir", "auto");
 
         const name = document.createElement("p");
         name.className = "name-text";
@@ -1383,6 +1483,7 @@ export class MeetingUI {
         const contentP = document.createElement("p");
         contentP.textContent = text;
         contentP.className = "content-p";
+        contentP.setAttribute("dir", "auto");
         textContainer.appendChild(contentP);
 
         messageDiv.appendChild(textContainer);
@@ -1394,6 +1495,7 @@ export class MeetingUI {
         const contentP = document.createElement("p");
         contentP.textContent = text;
         contentP.className = "content-p";
+        contentP.setAttribute("dir", "auto");
         messageDiv.querySelector(".text-container").appendChild(contentP);
     }
 
@@ -1429,28 +1531,49 @@ export class MeetingUI {
             const displayTitle = this.getDisplayTitle(convertedMeeting);
             const titleContainer = document.createElement("div");
             titleContainer.className = "meeting-title-container";
-            titleContainer.innerHTML = `
-                <h2 class="meeting-title-header">
-                    ${displayTitle}
-                    <button type="button" class="btn btn-link btn-sm rename-meeting-btn" title="Rename meeting">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button type="button" class="btn btn-link btn-sm auto-title-btn" title="Auto-generate title with AI">
-                        <i class="bi bi-stars"></i>
-                    </button>
-                </h2>
-                <div class="meeting-start-time">${new Date(convertedMeeting.meetingStartTime).toLocaleString(undefined, {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    weekday: 'long'
-                })}</div>
-            `;
+
+            const headerEl = document.createElement('h2');
+            headerEl.className = 'meeting-title-header';
+
+            const titleText = document.createElement('span');
+            titleText.className = 'meeting-title-text';
+            titleText.textContent = displayTitle;
+
+            const renameButton = document.createElement('button');
+            renameButton.type = 'button';
+            renameButton.className = 'btn btn-link btn-sm rename-meeting-btn';
+            renameButton.title = 'Rename meeting';
+            const renameIcon = document.createElement('i');
+            renameIcon.className = 'bi bi-pencil';
+            renameButton.appendChild(renameIcon);
+
+            const autoTitleButton = document.createElement('button');
+            autoTitleButton.type = 'button';
+            autoTitleButton.className = 'btn btn-link btn-sm auto-title-btn';
+            autoTitleButton.title = 'Auto-generate title with AI';
+            const autoTitleIcon = document.createElement('i');
+            autoTitleIcon.className = 'bi bi-stars';
+            autoTitleButton.appendChild(autoTitleIcon);
+
+            headerEl.appendChild(titleText);
+            headerEl.appendChild(renameButton);
+            headerEl.appendChild(autoTitleButton);
+
+            const timeEl = document.createElement('div');
+            timeEl.className = 'meeting-start-time';
+            timeEl.textContent = new Date(convertedMeeting.meetingStartTime).toLocaleString(undefined, {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                weekday: 'long'
+            });
+
+            titleContainer.appendChild(headerEl);
+            titleContainer.appendChild(timeEl);
             mainColumn.appendChild(titleContainer);
 
-            const renameButton = titleContainer.querySelector('.rename-meeting-btn');
             if (renameButton) {
                 renameButton.addEventListener('click', async () => {
                     const currentTitle = this.getDisplayTitle(convertedMeeting);
@@ -1466,16 +1589,17 @@ export class MeetingUI {
                     try {
                         const updated = await this.autoMeetingLogDB.updateMeetingTitle(
                             convertedMeeting.meetingStartTime,
-                            trimmed
+                            trimmed,
+                            convertedMeeting.meetingId
                         );
                         if (updated) {
                             convertedMeeting.meetingTitle = trimmed;
-                            const headerEl = titleContainer.querySelector('.meeting-title-header');
-                            if (headerEl) {
-                                // First child node is the text node before the buttons
-                                headerEl.childNodes[0].textContent = trimmed + ' ';
-                            }
+                            titleText.textContent = trimmed;
                             this.loadMeetingList();
+                            safeSendMessage({
+                                type: 'cloud.syncMeeting',
+                                meetingStartTime: convertedMeeting.meetingStartTime
+                            });
                         } else {
                             alert('Failed to update meeting name.');
                         }
@@ -1486,7 +1610,6 @@ export class MeetingUI {
                 });
             }
 
-            const autoTitleButton = titleContainer.querySelector('.auto-title-btn');
             if (autoTitleButton) {
                 autoTitleButton.addEventListener('click', () => {
                     this.handleAutoTitleMeeting(autoTitleButton);
@@ -1588,15 +1711,23 @@ export class MeetingUI {
             }
 
             let lastSpeaker = null;
+            let lastActorIndex = null;
+            let lastTimestamp = null;
             let messageDiv = null;
             let currentDate = null;
 
-            messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            messages.sort((a, b) => {
+                const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return timeA - timeB;
+            });
 
             messages.forEach((message) => {
-                const speaker = participants[message.actorIndex];
-                const text = message.text;
+                const speaker = participants[message.actorIndex] || { name: 'Unknown', imageUrl: '' };
+                const text = (message.text || '').trim();
+                if (!text) return;
                 const timestamp = message.timestamp;
+                const msgTime = new Date(timestamp).getTime();
 
                 const messageDate = new Date(timestamp).toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
 
@@ -1604,16 +1735,44 @@ export class MeetingUI {
                     const dateDivider = this.createDateDivider(messageDate);
                     mainColumn.appendChild(dateDivider);
                     currentDate = messageDate;
+                    lastSpeaker = null;
+                    lastActorIndex = null;
+                    lastTimestamp = null;
+                    messageDiv = null;
                 }
 
-                if (lastSpeaker !== speaker.name) {
+                const isSameSpeaker = lastActorIndex !== null
+                    ? (lastActorIndex === message.actorIndex)
+                    : (lastSpeaker === speaker.name);
+
+                const isWithinTurn =
+                    isSameSpeaker &&
+                    messageDiv &&
+                    lastTimestamp !== null &&
+                    !isNaN(msgTime) &&
+                    (msgTime - lastTimestamp <= 15000) &&
+                    (msgTime - lastTimestamp >= 0);
+
+                if (isWithinTurn) {
+                    const textContainer = messageDiv.querySelector(".text-container");
+                    const existingPs = textContainer ? textContainer.querySelectorAll(".content-p") : [];
+                    const activeP = existingPs.length > 0 ? existingPs[existingPs.length - 1] : null;
+                    if (activeP) {
+                        const prev = activeP.textContent || '';
+                        activeP.textContent = prev ? mergeConsecutiveTexts(prev, text) : text;
+                    } else {
+                        this.appendMessageToElement(messageDiv, text);
+                    }
+                } else if (isSameSpeaker && messageDiv && lastTimestamp !== null && !isNaN(msgTime) && (msgTime - lastTimestamp <= 60000) && (msgTime - lastTimestamp >= 0)) {
+                    this.appendMessageToElement(messageDiv, text);
+                } else {
                     messageDiv = this.createMessageElement(speaker, text, timestamp);
                     mainColumn.appendChild(messageDiv);
-                } else {
-                    this.appendMessageToElement(messageDiv, text);
                 }
 
                 lastSpeaker = speaker.name;
+                lastActorIndex = message.actorIndex;
+                lastTimestamp = msgTime;
             });
 
             captionsElement.hidden = false;

@@ -313,3 +313,17 @@ body {
     letter-spacing: 0.03em;
     font-size: 12px;
 }
+
+.buy-pro-btn {
+    text-decoration: none;
+    margin-bottom: 12px;
+}
+
+.pro-license-hint {
+    margin-top: 6px;
+    margin-bottom: 0;
+}
+
+.pro-actions-row {
+    margin-top: 12px;
+}

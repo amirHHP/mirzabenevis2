@@ -2,6 +2,35 @@ import { CloudSyncManager } from './CloudSyncManager.js';
 import { LicenseManager } from './LicenseManager.js';
 import { BackupManager } from './BackupManager.js';
 
+function safeBroadcast(message) {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+            const res = chrome.runtime.sendMessage(message, () => {
+                void chrome.runtime?.lastError;
+            });
+            if (res && typeof res.catch === 'function') {
+                res.catch(() => {});
+            }
+        }
+    } catch (_) {}
+}
+
+const MEET_PAGE_TYPES = new Set([
+    'background.saveMeeting',
+    'background.updateMeetingTitle',
+]);
+
+export function isMessageAllowed(type, sender) {
+    const url = sender?.url || '';
+    if (url.startsWith('chrome-extension://') || url.startsWith('moz-extension://')) {
+        return true;
+    }
+    if (url.startsWith('https://meet.google.com/')) {
+        return MEET_PAGE_TYPES.has(type);
+    }
+    return false;
+}
+
 export class DataRequestHandler {
     constructor(
         autoMeetingLogDB,
@@ -26,7 +55,7 @@ export class DataRequestHandler {
     }
 
     async handleSaveMeeting(request, sendResponse) {
-        console.log("Starting to save meeting:", request.meetingInfo);
+        console.log("Starting to save meeting:", request.meetingInfo?.meetingStartTime);
         try {
             await this.autoMeetingLogDB.saveMeeting(request.meetingInfo, request.messages, {
                 replacePrefix: Boolean(request.replacePrefix),
@@ -34,17 +63,13 @@ export class DataRequestHandler {
             console.log("Meeting saved successfully.");
             
             // UI 업데이트 메시지 전송
-            try {
-                chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
-                chrome.runtime.sendMessage({
-                    type: "meetings.syncMeetingUI",
-                    meetingStartTime: request.meetingInfo.meetingStartTime,
-                    isCurrentMeeting: true,
-                });
-                console.log("UI update message sent");
-            } catch (error) {
-                console.log("UI update skipped:", error);
-            }
+            safeBroadcast({ type: "meetings.loadMeetingList" });
+            safeBroadcast({
+                type: "meetings.syncMeetingUI",
+                meetingStartTime: request.meetingInfo.meetingStartTime,
+                isCurrentMeeting: true,
+            });
+            console.log("UI update message sent");
             
             sendResponse({ success: true, message: "Meeting saved successfully." });
 
@@ -114,11 +139,7 @@ export class DataRequestHandler {
             // Best-effort remote delete so the web app stays consistent
             await this.cloudSync.deleteMeetingRemote(request.meetingStartTime);
 
-            try {
-                chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
-            } catch (error) {
-                console.log("UI update skipped:", error);
-            }
+            safeBroadcast({ type: "meetings.loadMeetingList" });
             sendResponse({ success: true });
         } catch (error) {
             console.error("Error deleting meeting:", error);
@@ -138,12 +159,8 @@ export class DataRequestHandler {
             sendResponse({ success: true, syncedCount });
             
             // UI 업데이트 메시지 전송
-            try {
-                chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
-                console.log("UI update message sent after sync");
-            } catch (error) {
-                console.log("UI update after sync skipped:", error);
-            }
+            safeBroadcast({ type: "meetings.loadMeetingList" });
+            console.log("UI update message sent after sync");
         } catch (error) {
             console.error("Error syncing with Drive:", error);
             sendResponse({ success: false, error: error.message });
@@ -152,20 +169,18 @@ export class DataRequestHandler {
 
     async handleUpdateMeetingTitle(request, sendResponse) {
         try {
-            const { meetingStartTime, meetingTitle } = request;
+            const { meetingStartTime, meetingTitle, meetingId } = request;
             if (!meetingStartTime || !meetingTitle) {
                 sendResponse?.({ success: false, message: "Missing parameters" });
                 return;
             }
-            await this.autoMeetingLogDB.updateMeetingTitle(meetingStartTime, meetingTitle);
-            try {
-                chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
-                chrome.runtime.sendMessage({
-                    type: "meetings.syncMeetingUI",
-                    meetingStartTime,
-                    isCurrentMeeting: true,
-                });
-            } catch (_) {}
+            await this.autoMeetingLogDB.updateMeetingTitle(meetingStartTime, meetingTitle, meetingId);
+            safeBroadcast({ type: "meetings.loadMeetingList" });
+            safeBroadcast({
+                type: "meetings.syncMeetingUI",
+                meetingStartTime,
+                isCurrentMeeting: true,
+            });
 
             this.cloudSync
                 .syncMeeting(this.autoMeetingLogDB, meetingStartTime)
@@ -174,6 +189,16 @@ export class DataRequestHandler {
             sendResponse?.({ success: true });
         } catch (error) {
             console.error("Error updating meeting title:", error);
+            sendResponse?.({ success: false, message: error.message });
+        }
+    }
+
+    async handleCloudSyncMeeting(request, sendResponse) {
+        try {
+            await this.cloudSync.syncMeeting(this.autoMeetingLogDB, request.meetingStartTime);
+            sendResponse?.({ success: true });
+        } catch (error) {
+            console.error("Error syncing meeting with cloud:", error);
             sendResponse?.({ success: false, message: error.message });
         }
     }
@@ -217,9 +242,7 @@ export class DataRequestHandler {
     async handleBackupRestore(request, sendResponse) {
         try {
             const result = await this.backupManager.restoreBackup(request.backupContent);
-            try {
-                chrome.runtime.sendMessage({ type: "meetings.loadMeetingList" });
-            } catch (_) {}
+            safeBroadcast({ type: "meetings.loadMeetingList" });
             sendResponse({ success: true, ...result });
         } catch (error) {
             sendResponse({ success: false, message: error.message, code: error.code });
@@ -227,6 +250,11 @@ export class DataRequestHandler {
     }
 
     handleMessage(request, sender, sendResponse) {
+        if (!isMessageAllowed(request?.type, sender)) {
+            sendResponse?.({ success: false, message: 'Sender is not allowed to perform this action.' });
+            return false;
+        }
+
         console.log("Received message:", request.type);
         
         if (request.type === "background.getMeetings") {
@@ -246,6 +274,9 @@ export class DataRequestHandler {
             return true;
         } else if (request.type === "cloud.deleteMeeting") {
             this.handleCloudDeleteRemote(request, sendResponse);
+            return true;
+        } else if (request.type === "cloud.syncMeeting") {
+            this.handleCloudSyncMeeting(request, sendResponse);
             return true;
         } else if (request.type === "cloud.login") {
             this.handleCloudLogin(request, sendResponse);

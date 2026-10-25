@@ -460,6 +460,12 @@ body.sidebar-resizing .sidebar-resizer {
     gap: 8px;
 }
 
+.meeting-title-text {
+    min-width: 0;
+    flex: 1;
+    overflow-wrap: anywhere;
+}
+
 .meeting-title-header .btn-link {
     padding: 0 4px;
     color: #616061;
@@ -520,6 +526,8 @@ body.sidebar-resizing .sidebar-resizer {
 
 .message .text-container {
     flex-grow: 1;
+    unicode-bidi: plaintext;
+    text-align: start;
 }
 
 .message .name-text {
@@ -540,6 +548,8 @@ body.sidebar-resizing .sidebar-resizer {
 .message .content-p {
     margin: 0 0 4px 0;
     line-height: 1.4;
+    unicode-bidi: plaintext;
+    text-align: start;
 }
 
 .text-container.highlight {
@@ -724,6 +734,8 @@ body.sidebar-resizing .sidebar-resizer {
     font-size: 0.9375rem;
     line-height: 1.46668;
     color: #1d1c1d;
+    unicode-bidi: plaintext;
+    text-align: start;
 }
 
 .date-divider {
@@ -1085,4 +1097,83 @@ body.sidebar-resizing .sidebar-resizer {
     gap: 6px;
     color: #495057;
     text-align: right;
+}
+
+/* Modal & Component Utility Classes replacing inline styles */
+.rounded-modal {
+    border-radius: 14px !important;
+    overflow: hidden !important;
+}
+
+.modal-header-pro {
+    background: linear-gradient(135deg, #350d36 0%, #5c1860 100%) !important;
+}
+
+.modal-header-backup {
+    background: linear-gradient(135deg, #1f3c88 0%, #2b580c 100%) !important;
+}
+
+.modal-header-success {
+    background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%) !important;
+}
+
+.modal-header-icon-sm {
+    font-size: 1.2rem;
+}
+
+.modal-header-icon-md {
+    font-size: 1.4rem;
+}
+
+.modal-icon-lg {
+    font-size: 3rem;
+}
+
+.modal-body-rtl {
+    text-align: right;
+}
+
+.rounded-alert {
+    border-radius: 10px;
+}
+
+.text-sm-custom {
+    font-size: 0.9rem;
+}
+
+.text-xs-custom {
+    font-size: 0.85rem;
+}
+
+.pro-features-list {
+    font-size: 0.88rem;
+}
+
+.card-accent-blue {
+    border-right: 4px solid #0d6efd !important;
+}
+
+.card-accent-green {
+    border-right: 4px solid #198754 !important;
+}
+
+.card-text-desc {
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+.badge-pro-status {
+    font-size: 0.85rem;
+}
+
+.code-ltr {
+    direction: ltr;
+}
+
+.status-alert-hidden {
+    display: none;
+}
+
+.file-input-hidden {
+    display: none;
 }

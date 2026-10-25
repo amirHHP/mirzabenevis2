@@ -1,18 +1,20 @@
+import { isLobbyOrGenericTitle } from './AutoMeetingLogData.js';
+
 export class MeetingMigration {
     constructor(instanceManager, autoMeetingLogDB) {
         this.instanceManager = instanceManager;
         this.db = autoMeetingLogDB;
     }
 
-    // 기존 회의 데이터에 instanceId 추가 및 'Meet' 기본 제목 정리
+    // 기존 회의 데이터에 instanceId 추가 및 로비/기본 제목 정리
     async migrateMeetings(meetings) {
         const instanceId = await this.instanceManager.getInstanceId();
         
         return meetings.map(meeting => {
-            const isGeneric = meeting.meetingTitle === 'Meet' || meeting.meetingTitle === 'Google Meet';
+            const isGeneric = isLobbyOrGenericTitle(meeting.meetingTitle, meeting.meetingId);
             return {
                 ...meeting,
-                meetingTitle: isGeneric ? (meeting.meetingId || '') : meeting.meetingTitle,
+                meetingTitle: isGeneric ? (meeting.aiTitle || meeting.generatedTitle || meeting.meetingId || 'Untitled Meeting') : meeting.meetingTitle,
                 instanceId: meeting.instanceId || instanceId,
                 migratedAt: new Date().toISOString()
             };

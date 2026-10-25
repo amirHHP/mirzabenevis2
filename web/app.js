@@ -133,13 +133,292 @@ let meetings = [];
 let selectedStartTime = null;
 let currentUserId = null;
 
+// ---------- transcript deduplication helpers ----------
+
+function normalizeForComparison(text) {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[\p{P}\p{S}]/gu, ' ')
+    .replace(/[\u200c\u200b\u00a0]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function wordsMatch(w1, w2) {
+  if (w1 === w2) return true;
+  if (!w1 || !w2) return false;
+
+  // Numbers must match exactly to prevent false stem matches (e.g. 12 vs 123)
+  const hasDigits = /[\d\u0660-\u0669\u06F0-\u06F9]/.test(w1) || /[\d\u0660-\u0669\u06F0-\u06F9]/.test(w2);
+  if (hasDigits) return w1 === w2;
+
+  const minLen = Math.min(w1.length, w2.length);
+  const maxLen = Math.max(w1.length, w2.length);
+  if (minLen < 2) return false;
+
+  let common = 0;
+  while (common < minLen && w1[common] === w2[common]) common++;
+
+  if (minLen === 2) {
+    // For 2-letter words, match if both letters match and maxLen <= 3 (e.g. رب vs ربع, من vs منو)
+    return common === 2 && maxLen <= 3;
+  }
+
+  // In streaming Persian STT, allow 3+ letter exact prefix stems (e.g. تصو -> تصویرم, چطو -> چطورین, ندا -> نداشتیم)
+  const isNonAscii = /[^\x00-\x7F]/.test(w1) || /[^\x00-\x7F]/.test(w2);
+  if (isNonAscii && common === minLen && minLen >= 3) {
+    return true;
+  }
+
+  if (Math.abs(w1.length - w2.length) > 3) return false;
+
+  return common >= 3 && common >= minLen - 2 && (common / maxLen) >= 0.55;
+}
+
+function lcsWordMatchCount(wordsA, wordsB) {
+  const m = wordsA.length;
+  const n = wordsB.length;
+  if (m === 0 || n === 0) return 0;
+
+  const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+
+  for (let i = 0; i < m; i++) {
+    for (let j = 0; j < n; j++) {
+      if (wordsMatch(wordsA[i], wordsB[j])) {
+        dp[i + 1][j + 1] = Math.max(dp[i][j] + 1, dp[i + 1][j], dp[i][j + 1]);
+      } else {
+        dp[i + 1][j + 1] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+  }
+
+  return dp[m][n];
+}
+
+function classifyTextRelationship(olderText, newerText) {
+  const normOlder = normalizeForComparison(olderText);
+  const normNewer = normalizeForComparison(newerText);
+  if (!normOlder || !normNewer) return 'none';
+  if (normOlder === normNewer) return 'duplicate';
+  if (normNewer.startsWith(normOlder + ' ')) return 'extension';
+  if (normOlder.startsWith(normNewer + ' ')) return 'subsumed';
+
+  const olderWords = normOlder.split(' ').filter(Boolean);
+  const newerWords = normNewer.split(' ').filter(Boolean);
+  if (olderWords.length === 0 || newerWords.length === 0) return 'none';
+
+  if (newerWords.length === olderWords.length) {
+    const K = olderWords.length;
+    const matchCount = lcsWordMatchCount(olderWords, newerWords);
+    if (matchCount === K) return 'extension';
+    return 'none';
+  }
+
+  if (newerWords.length > olderWords.length) {
+    const K = olderWords.length;
+    const matchCount = lcsWordMatchCount(olderWords, newerWords);
+    const threshold = K <= 4 ? K : (K - 1);
+    if (matchCount >= threshold && (matchCount / K) >= 0.8) return 'extension';
+  } else {
+    const K = newerWords.length;
+    const matchCount = lcsWordMatchCount(olderWords, newerWords);
+    const threshold = K <= 4 ? K : (K - 1);
+    if (matchCount >= threshold && (matchCount / K) >= 0.8) return 'subsumed';
+  }
+
+  return 'none';
+}
+
+const STANDALONE_REACTIONS = new Set([
+  'بله', 'آره', 'سلام', 'درود', 'خداحافظ', 'نه', 'مرسی', 'ممنون', 'متشکرم', 'باشه', 'اوکی', 'چشم', 'حتما', 'حتماً', 'درسته', 'دقیقا', 'دقیقاً', 'خوبه', 'ممنونم'
+]);
+
+function mergeConsecutiveTexts(prev, next) {
+  const p = (prev || '').trim();
+  const n = (next || '').trim();
+  if (!p) return n;
+  if (!n) return p;
+
+  const normP = normalizeForComparison(p);
+  const normN = normalizeForComparison(n);
+  if (!normN) return p;
+  if (!normP) return n;
+  if (normP === normN) return n.length >= p.length ? n : p;
+
+  // Full prefix or suffix containment at word boundaries
+  if (normN.startsWith(normP + ' ')) {
+    return n;
+  }
+  if (normP.startsWith(normN + ' ') || normP.endsWith(' ' + normN)) {
+    return p;
+  }
+
+  const pWords = p.split(/\s+/);
+  const nWords = n.split(/\s+/);
+  const maxOverlapWords = Math.min(pWords.length, nWords.length);
+  let overlapCount = 0;
+
+  for (let count = maxOverlapWords; count >= 1; count--) {
+    const pSuffix = pWords.slice(pWords.length - count);
+    const nPrefix = nWords.slice(0, count);
+
+    let allMatch = true;
+    for (let i = 0; i < count; i++) {
+      const wP = normalizeForComparison(pSuffix[i]);
+      const wN = normalizeForComparison(nPrefix[i]);
+      const hasDigits = /[\d\u0660-\u0669\u06F0-\u06F9]/.test(wP) || /[\d\u0660-\u0669\u06F0-\u06F9]/.test(wN);
+      if (count === 1) {
+        const isCompletedPrefix = !hasDigits && wP.length >= 3 && wN.length > wP.length && wN.startsWith(wP) && wordsMatch(wP, wN);
+        if (wP !== wN && !isCompletedPrefix) {
+          allMatch = false;
+          break;
+        }
+      } else {
+        if (!wordsMatch(wP, wN) && wP !== wN) {
+          allMatch = false;
+          break;
+        }
+      }
+    }
+
+    if (allMatch) {
+      overlapCount = count;
+      break;
+    }
+  }
+
+  if (overlapCount > 0) {
+    const pPrefixWords = pWords.slice(0, pWords.length - overlapCount);
+    const pOverlapWords = pWords.slice(pWords.length - overlapCount);
+    const nOverlapWords = nWords.slice(0, overlapCount);
+    const nRemainingWords = nWords.slice(overlapCount);
+
+    const mergedOverlapWords = [];
+    for (let i = 0; i < overlapCount; i++) {
+      const pW = pOverlapWords[i];
+      const nW = nOverlapWords[i];
+      const normPW = normalizeForComparison(pW);
+      const normNW = normalizeForComparison(nW);
+      // If nW is equal or longer, prefer nW to replace truncated partial words with full words
+      if (normNW.length >= normPW.length) {
+        mergedOverlapWords.push(nW);
+      } else {
+        mergedOverlapWords.push(pW);
+      }
+    }
+
+    const allWords = [...pPrefixWords, ...mergedOverlapWords, ...nRemainingWords];
+    return allWords.join(' ');
+  }
+
+  return `${p} ${n}`;
+}
+
+function mergeCaptionMessages(existingMessages, incomingMessages, replacePrefix = false, windowMs = 30000) {
+  let messages = existingMessages ? [...existingMessages] : [];
+
+  incomingMessages.forEach((incoming) => {
+    const newText = (incoming.text || '').trim();
+    if (!newText) return;
+
+    if (!replacePrefix) {
+      const last = messages[messages.length - 1];
+      if (
+        last &&
+        last.actorIndex === incoming.actorIndex &&
+        last.type === 'caption' &&
+        normalizeForComparison(last.text) === normalizeForComparison(newText)
+      ) {
+        return;
+      }
+      messages.push(incoming);
+      return;
+    }
+
+    const incomingTime = incoming.timestamp ? new Date(incoming.timestamp).getTime() : NaN;
+    let isSubsumedOrDup = false;
+    const indicesToRemove = [];
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const prev = messages[i];
+      if (prev.actorIndex !== incoming.actorIndex || prev.type !== 'caption') continue;
+
+      const prevTime = prev.timestamp ? new Date(prev.timestamp).getTime() : NaN;
+      const timeDiff = (!isNaN(incomingTime) && !isNaN(prevTime))
+        ? (incomingTime - prevTime)
+        : 0;
+
+      if (!isNaN(incomingTime) && !isNaN(prevTime)) {
+        if (timeDiff > windowMs) break;
+      } else if (messages.length - 1 - i > 25) {
+        break;
+      }
+
+      const isImmediatelyPreceding = (i === messages.length - 1);
+      const rel = classifyTextRelationship(prev.text, newText);
+
+      if (rel === 'extension') {
+        if (isImmediatelyPreceding) {
+          if (timeDiff > 12000) break;
+        } else {
+          const normPrev = normalizeForComparison(prev.text);
+          const isShortReaction = STANDALONE_REACTIONS.has(normPrev);
+          if (isShortReaction || timeDiff > 5000) {
+            continue;
+          }
+        }
+        indicesToRemove.push(i);
+      } else if (isImmediatelyPreceding && (rel === 'duplicate' || rel === 'subsumed')) {
+        if (timeDiff <= 12000) {
+          isSubsumedOrDup = true;
+          break;
+        }
+      }
+    }
+
+    if (isSubsumedOrDup) return;
+
+    if (indicesToRemove.length > 0) {
+      const removeSet = new Set(indicesToRemove);
+      messages = messages.filter((_, idx) => !removeSet.has(idx));
+    }
+
+    messages.push(incoming);
+  });
+
+  return messages;
+}
+
+function deduplicateMeetingMessages(messages, windowMs = 30000) {
+  if (!Array.isArray(messages) || messages.length === 0) return [];
+  const sorted = [...messages].sort((a, b) => {
+    const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return timeA - timeB;
+  });
+
+  let result = [];
+  sorted.forEach((msg) => {
+    if (msg.type && msg.type !== 'caption') {
+      result.push({ ...msg });
+      return;
+    }
+    result = mergeCaptionMessages(result, [{ ...msg }], true, windowMs);
+  });
+
+  return result;
+}
+
 function rowToMeeting(row) {
+  const rawMessages = Array.isArray(row.messages) ? row.messages : [];
   return {
     meetingStartTime: row.meeting_start_time,
     meetingId: row.meeting_id,
     meetingTitle: row.meeting_title,
+    aiTitle: row.ai_title || row.aiTitle,
+    generatedTitle: row.generated_title || row.generatedTitle,
     participants: Array.isArray(row.participants) ? row.participants : [],
-    messages: Array.isArray(row.messages) ? row.messages : [],
+    messages: deduplicateMeetingMessages(rawMessages),
     notesText: row.notes_text || '',
     summaryText: row.summary_text,
     lastUpdated: row.last_updated,
@@ -265,7 +544,11 @@ async function loadMeetings() {
     .order('meeting_start_time', { ascending: false });
 
   if (error) {
-    meetingsList.innerHTML = `<div class="list-status">${error.message}</div>`;
+    meetingsList.innerHTML = '';
+    const status = document.createElement('div');
+    status.className = 'list-status';
+    status.textContent = error.message;
+    meetingsList.appendChild(status);
     return;
   }
 
@@ -280,6 +563,213 @@ async function loadMeetings() {
 }
 
 refreshBtn.addEventListener('click', loadMeetings);
+
+// ---------- title helpers ----------
+
+const LOBBY_TITLE_PHRASES = [
+  'ready to join',
+  'getting ready',
+  'joining',
+  'loading',
+  'asking to join',
+  'ask to join',
+  'checking your audio and video',
+  'check your audio and video',
+  'waiting for approval',
+  'waiting to be admitted',
+  'waiting for the host',
+  'someone will let you in soon',
+  'preparing',
+  'you can\'t join this call',
+  'this call has ended',
+  'return to home screen',
+  'meeting has ended',
+  'your meeting is ready',
+  'join now',
+  'join this video meeting',
+  'join video meeting',
+  'join this video call',
+  'join video call',
+  'join this meeting',
+  'join this call',
+  'join meeting',
+  'join a meeting',
+  'join call',
+  'join with google meet',
+  'join with meet',
+  'join audio',
+  'آماده پیوستن',
+  'آماده‌اید بپیوندید',
+  'آماده ملحق شدن',
+  'در حال پیوستن',
+  'در حال بارگذاری',
+  'در حال آماده‌سازی',
+  'درخواست برای پیوستن',
+  'درخواست پیوستن',
+  'درخواست ملحق شدن',
+  'درخواست ورود',
+  'در انتظار تأیید',
+  'در انتظار تایید',
+  'در انتظار ورود',
+  'منتظر بمانید',
+  'منتظر تأیید بمانید',
+  'منتظر تایید بمانید',
+  'بررسی صدا و تصویر',
+  'بررسی وضعیت صوتی و تصویری',
+  'جلسه شما آماده است',
+  'جلسه پایان یافته',
+  'پایان جلسه',
+  'پیوستن به این جلسه ویدیویی',
+  'پیوستن به جلسه ویدیویی',
+  'پیوستن به این جلسه ویدئویی',
+  'پیوستن به جلسه ویدئویی',
+  'پیوستن به این جلسه تصویری',
+  'پیوستن به جلسه تصویری',
+  'پیوستن به این جلسه',
+  'پیوستن به جلسه',
+  'پیوستن به این تماس',
+  'پیوستن به تماس',
+  'ورود به جلسه',
+  'ورود به این جلسه',
+  'ورود به جلسه ویدیویی',
+  'ورود به این جلسه ویدیویی',
+  'ورود به جلسه ویدئویی',
+  'ورود به این جلسه ویدئویی',
+  'ورود به جلسه تصویری',
+  'ورود به این جلسه تصویری',
+  'جلسه ویدیویی',
+  'جلسه ویدئویی',
+  'جلسه تصویری',
+  '참여 준비 완료',
+  '참여 중',
+  '로드 중',
+  '지금 참여',
+  '화상 회의 참여',
+  'مستعد للانضمام',
+  'جاهز للانضمام',
+  'جارٍ الانضمام',
+  'جارٍ التحميل',
+  'طلب الانضمام',
+  'انضمام الآن',
+  'الانضمام الآن',
+  'انضمام إلى اجتماع الفيديو',
+  'الانضمام إلى اجتماع فيديو',
+  'الانضمام إلى هذا الاجتماع',
+  'الانضمام إلى اجتماع',
+  'الانضمام إلى المكالمة'
+];
+
+const UI_CONTROL_PHRASES = [
+  'turn off microphone',
+  'turn on microphone',
+  'turn off camera',
+  'turn on camera',
+  'leave call',
+  'leave meeting',
+  'end call',
+  'raise hand',
+  'lower hand',
+  'more options',
+  'meeting details',
+  'chat with everyone',
+  'people',
+  'show everyone',
+  'activities',
+  'host controls',
+  'turn on captions',
+  'turn off captions',
+  'خاموش کردن میکروفون',
+  'روشن کردن میکروفون',
+  'خاموش کردن دوربین',
+  'روشن کردن دوربین',
+  'ترک تماس',
+  'خروج از تماس',
+  'پایان تماس',
+  'دست بلند کردن',
+  'گزینه‌های بیشتر',
+  'اطلاعات جلسه',
+  'جزئیات جلسه',
+  'افراد',
+  'چت',
+  'گفتگو',
+  'فعالیت‌ها',
+  'کنترل‌های میزبان',
+  'فعال‌سازی زیرنویس',
+  'خاموش کردن زیرنویس'
+];
+
+function isLobbyOrGenericTitle(title, meetingId = '') {
+  if (!title || typeof title !== 'string') return true;
+  let t = title.trim();
+  if (!t) return true;
+
+  // Remove leading bidi control marks
+  t = t.replace(/^[\s\u200e\u200f\u202a-\u202e\u2066-\u2069]+/gu, '').trim();
+
+  // Remove notification count like (1), (2), (۱), (۲)
+  t = t.replace(/^\([\d\u0660-\u0669\u06F0-\u06F9]+\)\s*/u, '').trim();
+
+  // Strip prefixes/suffixes like "Meet - ", " - Google Meet", "گوگل میت", "میت"
+  t = t.replace(/^(?:Google\s+)?Meet\s*[-–—:|#]\s*/i, '').trim();
+  t = t.replace(/\s*[-–—:|#]\s*(?:Google\s+)?Meet$/i, '').trim();
+  t = t.replace(/^(?:گوگل\s+)?میت\s*[-–—:|#]\s*/iu, '').trim();
+  t = t.replace(/\s*[-–—:|#]\s*(?:گوگل\s+)?میت$/iu, '').trim();
+
+  // Strip leading/trailing punctuation, bidi control marks, hashes, bullets, etc.
+  const cleaned = t
+    .replace(/^[\s\u200e\u200f\u202a-\u202e\u2066-\u2069?!؟.\-_–—:|#()·•]+/gu, '')
+    .replace(/[\s\u200e\u200f\u202a-\u202e\u2066-\u2069?!؟.\-_–—:|#()·•]+$/gu, '')
+    .trim()
+    .toLowerCase();
+
+  if (!cleaned) return true;
+  if (
+    cleaned === 'meet' ||
+    cleaned === 'google meet' ||
+    cleaned === 'میت' ||
+    cleaned === 'گوگل میت' ||
+    cleaned === 'untitled' ||
+    cleaned === 'untitled meeting' ||
+    cleaned === 'بدون عنوان' ||
+    cleaned === 'جلسه بدون عنوان'
+  ) {
+    return true;
+  }
+  if (meetingId && (cleaned === meetingId.toLowerCase() || t === meetingId)) {
+    return true;
+  }
+  if (/^[a-z]{3}-[a-z]{4}-[a-z]{3}$/i.test(cleaned)) {
+    return true;
+  }
+
+  // Pure clock or time + meeting code (e.g. "12:30 PM | abc-defg-hij", "12:30 · abc-defg-hij", "۱۲:۳۰ | abc-defg-hij", "10:15")
+  if (/^[\d\u0660-\u0669\u06F0-\u06F9]{1,2}:[\d\u0660-\u0669\u06F0-\u06F9]{2}(?::[\d\u0660-\u0669\u06F0-\u06F9]{2})?\s*(?:am|pm|ق\.?ظ|ب\.?ظ|ق\u200cظ|ب\u200cظ)?(?:\s*[-–—|·•]\s*[a-z]{3}-[a-z]{4}-[a-z]{3})?$/iu.test(cleaned)) {
+    return true;
+  }
+
+  // Check UI control labels/tooltips
+  if (UI_CONTROL_PHRASES.some(phrase => cleaned === phrase || cleaned.startsWith(phrase))) {
+    return true;
+  }
+
+  return LOBBY_TITLE_PHRASES.some(phrase => {
+    if (cleaned === phrase) return true;
+    if (cleaned.startsWith(phrase + ' ') || cleaned.startsWith(phrase + '...') || cleaned.startsWith(phrase + '?') || cleaned.startsWith(phrase + '؟')) {
+      return true;
+    }
+    if (cleaned.endsWith(' ' + phrase) || cleaned.endsWith('...' + phrase)) {
+      return true;
+    }
+    return false;
+  });
+}
+
+function getDisplayTitle(meeting) {
+  if (meeting?.meetingTitle && !isLobbyOrGenericTitle(meeting.meetingTitle, meeting?.meetingId)) {
+    return meeting.meetingTitle;
+  }
+  return meeting?.aiTitle || meeting?.generatedTitle || meeting?.meetingId || t('untitled');
+}
 
 // ---------- meetings list ----------
 
@@ -307,12 +797,6 @@ function renderList() {
   }
 
   meetingsList.innerHTML = '';
-function getDisplayTitle(meeting) {
-  if (meeting?.meetingTitle && meeting.meetingTitle !== 'Meet' && meeting.meetingTitle !== 'Google Meet') {
-    return meeting.meetingTitle;
-  }
-  return meeting?.meetingId || t('untitled');
-}
 
   filtered.forEach((meeting) => {
     const item = document.createElement('button');
@@ -417,8 +901,35 @@ function renderTranscript(meeting) {
     return;
   }
 
+  let lastActorIndex = null;
+  let lastTimestamp = null;
+  let lastBubble = null;
+  let lastType = null;
+
   sorted.forEach((msg) => {
     const speaker = meeting.participants[msg.actorIndex];
+    const text = (msg.text || '').trim();
+    if (!text && msg.type === 'caption') return;
+
+    const msgTime = msg.timestamp ? new Date(msg.timestamp).getTime() : NaN;
+    const isSameSpeaker = lastActorIndex !== null && lastActorIndex === msg.actorIndex;
+    const isWithin15s =
+      isSameSpeaker &&
+      lastType === 'caption' &&
+      msg.type === 'caption' &&
+      !isNaN(msgTime) &&
+      lastTimestamp !== null &&
+      !isNaN(lastTimestamp) &&
+      msgTime - lastTimestamp <= 15000 &&
+      msgTime - lastTimestamp >= 0;
+
+    if (isWithin15s && lastBubble) {
+      const prevText = lastBubble.textContent || '';
+      lastBubble.textContent = prevText ? mergeConsecutiveTexts(prevText, text) : text;
+      lastTimestamp = msgTime;
+      return;
+    }
+
     const wrap = document.createElement('div');
     wrap.className = 'message' + (msg.type !== 'caption' ? ' system' : '');
 
@@ -433,10 +944,16 @@ function renderTranscript(meeting) {
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
-    bubble.textContent = msg.text || '';
+    bubble.setAttribute('dir', 'auto');
+    bubble.textContent = text;
 
     wrap.append(head, bubble);
     transcriptEl.appendChild(wrap);
+
+    lastActorIndex = msg.actorIndex;
+    lastTimestamp = msgTime;
+    lastBubble = bubble;
+    lastType = msg.type;
   });
 }
 
@@ -505,7 +1022,12 @@ function generatePlainText(meeting) {
 
   const lines = sorted.map((msg) => {
     const speakerName = meeting.participants[msg.actorIndex]?.name || t('unknownSpeaker');
-    return `[${formatTime(msg.timestamp)}] ${speakerName}: ${msg.text}`;
+    const text = msg.text || '';
+    const hasRtl = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text);
+    const startsWithNonRtl = /^[\d\u0660-\u0669\u06F0-\u06F9\s\p{P}\p{S}]/u.test(text.trim());
+    const needsRlm = hasRtl && startsWithNonRtl && !text.startsWith('\u200F');
+    const formattedText = needsRlm ? `\u200F${text}` : text;
+    return `[${formatTime(msg.timestamp)}] ${speakerName}: ${formattedText}`;
   });
 
   if ((meeting.notesText || '').trim()) {

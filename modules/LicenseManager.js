@@ -5,18 +5,25 @@
 export const DEFAULT_PURCHASE_URL = 'https://mirzabenevis.com/pro';
 export const SECRET_SALT = 'MIRZABENEVIS_PRO_SECRET_SALT_2025';
 
-export const MASTER_KEYS = [
-    'MBPRO-VIP-2025-GOLD-TEST',
-    'MIRZABENEVIS-PRO-LIFETIME',
-    'MBPRO-PREVIEW-2025-DEV'
-];
-
 const STORAGE_KEYS = {
     IS_PRO: 'mirzabenevis_is_pro',
     LICENSE_KEY: 'mirzabenevis_pro_license',
     ACTIVATED_AT: 'mirzabenevis_pro_activated_at',
     PURCHASE_URL: 'mirzabenevis_pro_purchase_url'
 };
+
+function safeBroadcast(message) {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+            const res = chrome.runtime.sendMessage(message, () => {
+                void chrome.runtime?.lastError;
+            });
+            if (res && typeof res.catch === 'function') {
+                res.catch(() => {});
+            }
+        }
+    } catch (_) {}
+}
 
 /**
  * Calculates SHA-256 hex string using Web Crypto API or Node crypto
@@ -58,13 +65,6 @@ export class LicenseManager {
         if (!rawKey || typeof rawKey !== 'string') return '';
         const trimmed = rawKey.trim().toUpperCase();
 
-        // Check if matching master key directly (with or without hyphens)
-        for (const master of MASTER_KEYS) {
-            if (trimmed === master || trimmed.replace(/[^0-9A-Z]/g, '') === master.replace(/[^0-9A-Z]/g, '')) {
-                return master;
-            }
-        }
-
         // Clean all non-alphanumeric chars
         const clean = trimmed.replace(/[^0-9A-Z]/g, '');
 
@@ -87,11 +87,6 @@ export class LicenseManager {
         const normalized = this.normalizeKey(rawKey);
         if (!normalized) return { valid: false, normalized: '' };
 
-        // Check master keys
-        if (MASTER_KEYS.includes(normalized)) {
-            return { valid: true, normalized, isMaster: true };
-        }
-
         // Match standard format: MBPRO-XXXX-XXXX-XXXX-XXXX
         const match = normalized.match(/^MBPRO-([0-9A-Z]{4})-([0-9A-Z]{4})-([0-9A-Z]{4})-([0-9A-Z]{4})$/);
         if (!match) {
@@ -105,7 +100,7 @@ export class LicenseManager {
             const hash = await sha256Hex(`MBPRO:${payload}:${this.salt}`);
             const expectedChecksum = `${hash.slice(0, 4)}-${hash.slice(4, 8)}`;
             const valid = providedChecksum === expectedChecksum;
-            return { valid, normalized, isMaster: false };
+            return { valid, normalized };
         } catch (error) {
             console.error('Error verifying key:', error);
             return { valid: false, normalized };
@@ -148,9 +143,6 @@ export class LicenseManager {
     maskKey(key) {
         if (!key) return '';
         const normalized = this.normalizeKey(key);
-        if (MASTER_KEYS.includes(normalized)) {
-            return `${normalized.slice(0, 5)}-••••-VIP`;
-        }
         const parts = normalized.split('-');
         if (parts.length === 5) {
             return `${parts[0]}-••••-••••-${parts[4]}`;
@@ -315,13 +307,11 @@ export class LicenseManager {
             });
 
             // Notify other pages
-            try {
-                chrome.runtime?.sendMessage?.({
-                    type: 'license.updated',
-                    isPro: true,
-                    licenseKey: normalized
-                });
-            } catch (_) {}
+            safeBroadcast({
+                type: 'license.updated',
+                isPro: true,
+                licenseKey: normalized
+            });
         } else {
             try {
                 localStorage.setItem(STORAGE_KEYS.IS_PRO, 'true');
@@ -355,12 +345,10 @@ export class LicenseManager {
                 });
             });
 
-            try {
-                chrome.runtime?.sendMessage?.({
-                    type: 'license.updated',
-                    isPro: false
-                });
-            } catch (_) {}
+            safeBroadcast({
+                type: 'license.updated',
+                isPro: false
+            });
         } else {
             try {
                 localStorage.setItem(STORAGE_KEYS.IS_PRO, 'false');

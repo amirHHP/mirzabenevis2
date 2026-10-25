@@ -46,7 +46,7 @@
                 <p class="field-hint" data-i18n="proHint">
                     Upgrade to Pro to backup all meetings and unlock premium features.
                 </p>
-                <a id="buy-pro-link" class="btn btn-accent mb-2" href="https://mirzabenevis.com/pro" target="_blank" rel="noopener noreferrer" style="text-decoration: none; margin-bottom: 12px;">
+                <a id="buy-pro-link" class="btn btn-accent mb-2 buy-pro-btn" href="https://mirzabenevis.com/pro" target="_blank" rel="noopener noreferrer">
                     <span data-i18n="buyPro">Buy Pro License</span>
                 </a>
                 <div class="field">
@@ -65,11 +65,11 @@
                         <span class="pro-icon">⭐</span>
                         <strong data-i18n="proActiveLabel">Pro Account Active</strong>
                     </div>
-                    <p class="field-hint" style="margin-top: 6px; margin-bottom: 0;">
+                    <p class="field-hint pro-license-hint">
                         <span data-i18n="licenseLabel">License:</span> <code id="pro-masked-key"></code>
                     </p>
                 </div>
-                <div class="btn-row" style="margin-top: 12px;">
+                <div class="btn-row pro-actions-row">
                     <button id="pro-backup-btn" class="btn btn-accent" type="button">
                         <span data-i18n="backupNow">Download Backup</span>
                     </button>
@@ -134,7 +134,7 @@
                 <input id="gemini-api-key" class="field-input" type="password" autocomplete="off"
                     data-i18n-placeholder="apiKeyPlaceholder">
                 <p class="field-hint" data-i18n="apiKeyHint">
-                    Stored securely in Chrome sync storage. Required for meeting summaries.
+                    Stored only on this device, in the extension’s local storage. It is not synced with your Google account.
                 </p>
             </div>
 
