@@ -20,6 +20,9 @@ node_modules/
 dist/
 build/
 
+# Agent & AI artifacts
+.agents/
+
 # Images
 !images/logo-16.png
 !images/logo-32.png

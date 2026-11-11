@@ -17,6 +17,9 @@ function safeSendMessage(message) {
 }
 
 export class MeetingUI {
+    static GEMINI_MODEL = 'gemini-2.5-flash';
+    static CHUNK_THROTTLE_MS = 600;
+
     static QUOTA_EXCEEDED_MESSAGE =
         'سهمیه روزانه کلید Gemini شما به پایان رسیده است. لطفاً فردا مجدداً تلاش کنید یا از کلید دیگری استفاده نمایید';
 
@@ -278,6 +281,14 @@ export class MeetingUI {
             const formattedText = needsRlm ? `\u200F${text}` : text;
             return `[${time}] ${speakerName}: ${formattedText}`;
         });
+
+        if ((convertedMeeting.summaryText || '').trim()) {
+            lines.push('', '--- Summary ---', convertedMeeting.summaryText.trim());
+        }
+
+        if ((convertedMeeting.notesText || '').trim()) {
+            lines.push('', '--- Notes ---', convertedMeeting.notesText.trim());
+        }
 
         return [...headerLines, ...lines].join('\n');
     }
@@ -849,6 +860,12 @@ export class MeetingUI {
         return chunks;
     }
 
+    async throttleChunk() {
+        if (typeof chrome !== 'undefined' && chrome.runtime?.id && MeetingUI.CHUNK_THROTTLE_MS > 0) {
+            await new Promise((resolve) => setTimeout(resolve, MeetingUI.CHUNK_THROTTLE_MS));
+        }
+    }
+
     async summarizeTranscript(apiKey, text, language) {
         const capped = (text || '').slice(0, MeetingUI.SUMMARY_MAX_CHARS);
         let pieces = this.splitTranscript(capped);
@@ -858,8 +875,11 @@ export class MeetingUI {
 
         for (let round = 0; pieces.length > 1 && round < 4; round++) {
             const partials = [];
-            for (const piece of pieces) {
-                partials.push(await this.callGeminiSummarize(apiKey, piece, language));
+            for (let i = 0; i < pieces.length; i++) {
+                if (i > 0) {
+                    await this.throttleChunk();
+                }
+                partials.push(await this.callGeminiSummarize(apiKey, pieces[i], language));
             }
             pieces = this.splitTranscript(partials.join('\n\n'));
         }
@@ -926,7 +946,7 @@ export class MeetingUI {
     }
 
     async callGeminiSummarize(apiKey, text, language) {
-        const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MeetingUI.GEMINI_MODEL}:generateContent`;
         const prompt = this.buildSummaryPrompt(text, language);
 
         const response = await fetch(endpoint, {
@@ -1148,7 +1168,7 @@ export class MeetingUI {
     }
 
     async callGeminiGenerateTitle(apiKey, text, language) {
-        const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MeetingUI.GEMINI_MODEL}:generateContent`;
         const languageName = language === 'fa' ? 'Persian (Farsi)' : 'English';
         const prompt =
             `You are an expert meeting assistant. Based on the following meeting transcript, generate a short, professional, and descriptive meeting title (3 to 6 words maximum) in ${languageName}. ` +
@@ -1221,7 +1241,8 @@ export class MeetingUI {
             const title = await this.callGeminiGenerateTitle(apiKey, text, language);
             const updated = await this.autoMeetingLogDB.updateMeetingTitle(
                 meeting.meetingStartTime,
-                title
+                title,
+                meeting.meetingId
             );
 
             if (updated) {
@@ -1299,10 +1320,16 @@ export class MeetingUI {
     createParticipantAvatar(participant, selectedParticipant) {
         const participantAvatar = document.createElement("img");
         participantAvatar.className = "participant-avatar";
-        participantAvatar.src = participant.imageUrl;
-        participantAvatar.alt = participant.name;
-        participantAvatar.title = participant.name;
-        participantAvatar.setAttribute('data-participant-name', participant.name);
+        const initial = (participant?.name || '?').trim().charAt(0).toUpperCase();
+        const fallbackSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><rect width="100%" height="100%" rx="4" fill="%231a73e8"/><text x="50%" y="54%" font-family="sans-serif" font-size="16" font-weight="bold" fill="white" dominant-baseline="middle" text-anchor="middle">${encodeURIComponent(initial)}</text></svg>`;
+        participantAvatar.src = participant.imageUrl || fallbackSvg;
+        participantAvatar.alt = participant.name || 'Participant';
+        participantAvatar.title = participant.name || 'Participant';
+        participantAvatar.setAttribute('data-participant-name', participant.name || '');
+        participantAvatar.onerror = () => {
+            participantAvatar.onerror = null;
+            participantAvatar.src = fallbackSvg;
+        };
         participantAvatar.addEventListener("click", () => {
             const wasSelected = participantAvatar.classList.contains('selected');
             

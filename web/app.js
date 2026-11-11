@@ -157,22 +157,48 @@ function wordsMatch(w1, w2) {
   if (minLen < 2) return false;
 
   let common = 0;
-  while (common < minLen && w1[common] === w2[common]) common++;
+  while (common < minLen && w1[common] === w2[common]) {
+    common++;
+  }
 
   if (minLen === 2) {
     // For 2-letter words, match if both letters match and maxLen <= 3 (e.g. رب vs ربع, من vs منو)
     return common === 2 && maxLen <= 3;
   }
 
-  // In streaming Persian STT, allow 3+ letter exact prefix stems (e.g. تصو -> تصویرم, چطو -> چطورین, ندا -> نداشتیم)
-  const isNonAscii = /[^\x00-\x7F]/.test(w1) || /[^\x00-\x7F]/.test(w2);
-  if (isNonAscii && common === minLen && minLen >= 3) {
-    return true;
+  // Pure prefix: only a one-character colloquial tail on a short word (خوب / خوبه).
+  if (common === minLen && maxLen > minLen) {
+    return maxLen - minLen === 1 && minLen <= 3;
   }
 
   if (Math.abs(w1.length - w2.length) > 3) return false;
 
+  // Must share a significant common stem covering most of the shorter word and good ratio of maxLen
   return common >= 3 && common >= minLen - 2 && (common / maxLen) >= 0.55;
+}
+
+/**
+ * True when `shorter` is an unfinished streaming fragment of `longer`
+ * (ندا -> نداشتیم). Not used for ordinary word equality.
+ */
+function isTruncatedStem(shorter, longer) {
+  if (!shorter || !longer || shorter === longer) return false;
+  if (shorter.length < 3 || longer.length - shorter.length < 2) return false;
+  const hasDigits = /[\d\u0660-\u0669\u06F0-\u06F9]/.test(shorter) || /[\d\u0660-\u0669\u06F0-\u06F9]/.test(longer);
+  if (hasDigits) return false;
+  if (!/[^\x00-\x7F]/.test(shorter) && !/[^\x00-\x7F]/.test(longer)) return false;
+  return longer.startsWith(shorter);
+}
+
+function coversInOrder(shorterWords, longerWords) {
+  if (!shorterWords.length || longerWords.length < shorterWords.length) return false;
+  for (let i = 0; i < shorterWords.length; i++) {
+    const a = shorterWords[i];
+    const b = longerWords[i];
+    if (a === b || wordsMatch(a, b) || isTruncatedStem(a, b)) continue;
+    return false;
+  }
+  return true;
 }
 
 function lcsWordMatchCount(wordsA, wordsB) {
@@ -206,6 +232,10 @@ function classifyTextRelationship(olderText, newerText) {
   const olderWords = normOlder.split(' ').filter(Boolean);
   const newerWords = normNewer.split(' ').filter(Boolean);
   if (olderWords.length === 0 || newerWords.length === 0) return 'none';
+
+  if (newerWords.length > olderWords.length && coversInOrder(olderWords, newerWords)) {
+    return 'extension';
+  }
 
   if (newerWords.length === olderWords.length) {
     const K = olderWords.length;
@@ -268,16 +298,14 @@ function mergeConsecutiveTexts(prev, next) {
       const wN = normalizeForComparison(nPrefix[i]);
       const hasDigits = /[\d\u0660-\u0669\u06F0-\u06F9]/.test(wP) || /[\d\u0660-\u0669\u06F0-\u06F9]/.test(wN);
       if (count === 1) {
-        const isCompletedPrefix = !hasDigits && wP.length >= 3 && wN.length > wP.length && wN.startsWith(wP) && wordsMatch(wP, wN);
+        const isCompletedPrefix = !hasDigits && (isTruncatedStem(wP, wN) || wordsMatch(wP, wN));
         if (wP !== wN && !isCompletedPrefix) {
           allMatch = false;
           break;
         }
-      } else {
-        if (!wordsMatch(wP, wN) && wP !== wN) {
-          allMatch = false;
-          break;
-        }
+      } else if (wP !== wN && !wordsMatch(wP, wN) && (hasDigits || !isTruncatedStem(wP, wN))) {
+        allMatch = false;
+        break;
       }
     }
 
@@ -1029,6 +1057,10 @@ function generatePlainText(meeting) {
     const formattedText = needsRlm ? `\u200F${text}` : text;
     return `[${formatTime(msg.timestamp)}] ${speakerName}: ${formattedText}`;
   });
+
+  if ((meeting.summaryText || '').trim()) {
+    lines.push('', '--- Summary ---', meeting.summaryText.trim());
+  }
 
   if ((meeting.notesText || '').trim()) {
     lines.push('', '--- Notes ---', meeting.notesText.trim());
