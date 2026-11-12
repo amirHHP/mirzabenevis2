@@ -1,6 +1,6 @@
 import { LicenseManager } from './LicenseManager.js';
 import { BackupManager } from './BackupManager.js';
-import { deduplicateMeetingMessages, mergeConsecutiveTexts } from './TranscriptDeduplicator.js';
+import { deduplicateMeetingMessages, mergeConsecutiveTexts, classifyTextRelationship } from './TranscriptDeduplicator.js';
 import { isLobbyOrGenericTitle } from './AutoMeetingLogData.js';
 
 function safeSendMessage(message) {
@@ -1780,12 +1780,30 @@ export class MeetingUI {
                     (msgTime - lastTimestamp <= 15000) &&
                     (msgTime - lastTimestamp >= 0);
 
+                const textContainer = messageDiv ? messageDiv.querySelector(".text-container") : null;
+                const existingPs = textContainer ? textContainer.querySelectorAll(".content-p") : [];
+                const activeP = existingPs.length > 0 ? existingPs[existingPs.length - 1] : null;
+                const prev = activeP ? (activeP.textContent || '') : '';
+                const rel = (isSameSpeaker && prev) ? classifyTextRelationship(prev, text) : 'none';
+
+                if (isSameSpeaker && messageDiv && activeP) {
+                    if (rel === 'extension') {
+                        activeP.textContent = text;
+                        lastSpeaker = speaker.name;
+                        lastActorIndex = message.actorIndex;
+                        lastTimestamp = msgTime;
+                        return;
+                    }
+                    if (rel === 'duplicate' || rel === 'subsumed') {
+                        lastSpeaker = speaker.name;
+                        lastActorIndex = message.actorIndex;
+                        lastTimestamp = msgTime;
+                        return;
+                    }
+                }
+
                 if (isWithinTurn) {
-                    const textContainer = messageDiv.querySelector(".text-container");
-                    const existingPs = textContainer ? textContainer.querySelectorAll(".content-p") : [];
-                    const activeP = existingPs.length > 0 ? existingPs[existingPs.length - 1] : null;
                     if (activeP) {
-                        const prev = activeP.textContent || '';
                         activeP.textContent = prev ? mergeConsecutiveTexts(prev, text) : text;
                     } else {
                         this.appendMessageToElement(messageDiv, text);

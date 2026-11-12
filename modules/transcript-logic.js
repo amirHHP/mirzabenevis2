@@ -136,6 +136,9 @@ function classifyTextRelationship(olderText, newerText) {
     if (newerWords.length > olderWords.length && coversInOrder(olderWords, newerWords)) {
         return 'extension';
     }
+    if (olderWords.length > newerWords.length && coversInOrder(newerWords, olderWords)) {
+        return 'subsumed';
+    }
 
     if (newerWords.length === olderWords.length) {
         // Equal length: must match 100% of words (including stem variants) to be an extension/revision
@@ -150,15 +153,50 @@ function classifyTextRelationship(olderText, newerText) {
     if (newerWords.length > olderWords.length) {
         const K = olderWords.length;
         const matchCount = lcsWordMatchCount(olderWords, newerWords);
-        const threshold = K <= 4 ? K : (K - 1);
-        if (matchCount >= threshold && (matchCount / K) >= 0.8) {
+
+        // Check common prefix from index 0
+        let commonPrefix = 0;
+        while (commonPrefix < olderWords.length && commonPrefix < newerWords.length) {
+            const w1 = olderWords[commonPrefix];
+            const w2 = newerWords[commonPrefix];
+            if (w1 === w2 || wordsMatch(w1, w2) || isTruncatedStem(w1, w2) || isTruncatedStem(w2, w1)) {
+                commonPrefix++;
+            } else {
+                break;
+            }
+        }
+
+        // If a strong prefix (>= 3 words and >= 50% of older, or >= 5 words) matches from the start,
+        // this is an in-progress sentence extension / STT revision.
+        if (commonPrefix >= 3 && (commonPrefix / K >= 0.5 || commonPrefix >= 5)) {
+            return 'extension';
+        }
+
+        const threshold = K <= 4 ? K : Math.ceil(K * 0.7);
+        if (matchCount >= threshold && (matchCount / K) >= 0.7) {
             return 'extension';
         }
     } else {
         const K = newerWords.length;
         const matchCount = lcsWordMatchCount(olderWords, newerWords);
-        const threshold = K <= 4 ? K : (K - 1);
-        if (matchCount >= threshold && (matchCount / K) >= 0.8) {
+
+        let commonPrefix = 0;
+        while (commonPrefix < newerWords.length && commonPrefix < olderWords.length) {
+            const w1 = olderWords[commonPrefix];
+            const w2 = newerWords[commonPrefix];
+            if (w1 === w2 || wordsMatch(w1, w2) || isTruncatedStem(w1, w2) || isTruncatedStem(w2, w1)) {
+                commonPrefix++;
+            } else {
+                break;
+            }
+        }
+
+        if (commonPrefix >= 3 && (commonPrefix / K >= 0.5 || commonPrefix >= 5)) {
+            return 'subsumed';
+        }
+
+        const threshold = K <= 4 ? K : Math.ceil(K * 0.7);
+        if (matchCount >= threshold && (matchCount / K) >= 0.7) {
             return 'subsumed';
         }
     }
@@ -186,6 +224,11 @@ function mergeConsecutiveTexts(prev, next) {
     if (!normN) return p;
     if (!normP) return n;
     if (normP === normN) return n.length >= p.length ? n : p;
+
+    const rel = classifyTextRelationship(p, n);
+    if (rel === 'extension') return n;
+    if (rel === 'subsumed') return p;
+    if (rel === 'duplicate') return n.length >= p.length ? n : p;
 
     // Full prefix or suffix containment at word boundaries
     if (normN.startsWith(normP + ' ')) {
@@ -318,8 +361,12 @@ function mergeCaptionMessages(existingMessages, incomingMessages, replacePrefix 
 
             if (rel === 'extension') {
                 if (isImmediatelyPreceding) {
-                    // In-progress STT extension for consecutive message from same speaker
-                    if (timeDiff > 12000) {
+                    const normPrev = normalizeForComparison(prev.text);
+                    const isShortReaction = STANDALONE_REACTIONS.has(normPrev) || normPrev.split(' ').filter(Boolean).length <= 2;
+                    if (isShortReaction && timeDiff > 12000) {
+                        break;
+                    }
+                    if (timeDiff > windowMs) {
                         break;
                     }
                 } else {
@@ -333,8 +380,7 @@ function mergeCaptionMessages(existingMessages, incomingMessages, replacePrefix 
                 }
                 indicesToRemove.push(i);
             } else if (isImmediatelyPreceding && (rel === 'duplicate' || rel === 'subsumed')) {
-                // Only treat as duplicate or subsumed if directly following same speaker within 12s
-                if (timeDiff <= 12000) {
+                if (timeDiff <= windowMs) {
                     isSubsumedOrDup = true;
                     break;
                 }

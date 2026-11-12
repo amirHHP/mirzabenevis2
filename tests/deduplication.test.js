@@ -605,6 +605,36 @@ describe('TranscriptDeduplicator', () => {
             assert.equal(cleaned.some(m => m.text === 'این فیلم دیدی'), true);
         });
 
+        it('cleans the extended streaming monologue from user report without repetition or paragraph duplication', () => {
+            const t0 = new Date('2026-11-12T18:02:00Z').getTime();
+
+            const p1 = 'اوکی ببین من از یه حدود دو سه ماه پیش دو ماه پیش حدود';
+            const p2 = 'اوکی ببین من از یه حدود دو سه ماه پیش حدودا به بچه ها جوین شدم بابت اینکه خب این کار استیلا و اینا رو انجام داده بودیم و یه مقداری شرکت دچار وضعیت ترنزیشن دچار یه سری بحران ها شده بود دیگه که خیلی هم طبیعیه که مثلاً حالا بچه';
+            const p3 = 'اوکی ببین من از یه حدود دو سه ماه پیش حدودا به بچه ها جوین شدم بابت اینکه خب این کار استیلا و اینا رو انجام داده بودیم و یه مقداری شرکت دچار وضعیت ترنزیشن دچار یه سری بحران ها شده بود دیگه که خیلی هم طبیعیه که مثلاً حالا مدل جدید بچه ها جا بیفته استیم چجوری بشه جا بیفته و حالا همه این اتفاقایی که افتاده من به بچه ها شدم که یه مقداری کمک بکنم که یه ذره اینا رو با هم فکر کنیم از نظر ارگانیزیشن درستش بکنیم و جوین شدنم هم خیلی به صورت چون منم نیستم و اختلاف ساعتمون هم زیاده و اینها به صورت مثلاً ۳۰ ۴۰ ساعت در ماهه و بیشتر من به صورت یه مثلاً یه ذه';
+            const p4 = 'اوکی ببین من از یه حدود دو سه ماه پیش حدودا به بچه ها جوین شدم بابت اینکه خب این کار استیلا و اینا رو انجام داده بودیم و یه مقداری شرکت دچار وضعیت ترنزیشن دچار یه سری بحران ها شده بود دیگه که خیلی هم طبیعیه که مثلاً حالا مدل جدید بچه ها جا بیفته استیم چجوری بشه جا بیفته و حالا همه این اتفاقایی که افتاده من به بچه ها شدم که یه مقداری کمک بکنم که یه ذره اینا رو با هم فکر کنیم از نظر ارگانیزیشن درستش بکنیم و جوین شدنم هم خیلی به صورت چون منم نیستم و اختلاف ساعتمون هم زیاده و اینها به صورت مثلاً ۳۰ ۴۰ ساعت در ماهه و بیشتر من به صورت یه مثلاً یه ذهنی یه ور دیگه با هم برین استور کنیم با هم بسازیم تا اینکه مثلا من بگم چیکار بکنم مثلا این مدلی نیست که من بیام بگم شما این کار را بکنید و برود و اینا بیشتر اینه که مثلا رو بیارم بچه ها ما با هم صحبت کنیم چیزی که به نظر من میرسه رو بیاریم چکش کاری کنیم به یه سوشن برسیم یعنی این مدلیه کاری که داره میکنه من با صفا با من صحبت کرد و قرار شد که من باهات صحبت کنم حالا یه هیستوری از اینکه مشغول چه کاری بودی و چی شده و سی ان چی شده';
+
+            // Verify classification recognizes incremental revisions and extensions
+            assert.equal(classifyTextRelationship(p1, p2), 'extension');
+            assert.equal(classifyTextRelationship(p2, p3), 'extension');
+            assert.equal(classifyTextRelationship(p3, p4), 'extension');
+
+            // Verify mergeConsecutiveTexts returns the complete text rather than duplicating
+            assert.equal(mergeConsecutiveTexts(p1, p2), p2);
+            assert.equal(mergeConsecutiveTexts(p2, p3), p3);
+            assert.equal(mergeConsecutiveTexts(p3, p4), p4);
+
+            const streamMessages = [
+                { actorIndex: 0, text: p1, timestamp: new Date(t0).toISOString(), type: 'caption' },
+                { actorIndex: 0, text: p2, timestamp: new Date(t0 + 13000).toISOString(), type: 'caption' },
+                { actorIndex: 0, text: p3, timestamp: new Date(t0 + 26000).toISOString(), type: 'caption' },
+                { actorIndex: 0, text: p4, timestamp: new Date(t0 + 39000).toISOString(), type: 'caption' },
+            ];
+
+            const cleaned = deduplicateMeetingMessages(streamMessages);
+            assert.equal(cleaned.length, 1, 'Incremental chunks must be merged into 1 clean message');
+            assert.equal(cleaned[0].text, p4);
+        });
+
         it('handles empty and null arrays gracefully', () => {
             assert.deepEqual(deduplicateMeetingMessages([]), []);
             assert.deepEqual(deduplicateMeetingMessages(null), []);

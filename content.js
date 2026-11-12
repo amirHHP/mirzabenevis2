@@ -963,13 +963,16 @@ class CaptionsObserver {
     // If previous sentence was already flushed and has been idle, start fresh turn
     const timeSinceLastUpdate = Date.now() - active.lastUpdated;
     if (active.lastSavedText && timeSinceLastUpdate > 4000) {
-      if (active.debounceTimer) {
-        clearTimeout(active.debounceTimer);
-        active.debounceTimer = null;
+      const relWithSaved = this.classifyTextRelationship(active.lastSavedText, text);
+      if (relWithSaved !== 'extension' && relWithSaved !== 'duplicate') {
+        if (active.debounceTimer) {
+          clearTimeout(active.debounceTimer);
+          active.debounceTimer = null;
+        }
+        await this.flushUtterance(active);
+        this.startUtterance(blockNode, text);
+        return;
       }
-      await this.flushUtterance(active);
-      this.startUtterance(blockNode, text);
-      return;
     }
 
     const rel = this.classifyTextRelationship(active.peakText, text);
